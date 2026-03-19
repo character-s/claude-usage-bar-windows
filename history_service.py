@@ -1,0 +1,115 @@
+"""Usage history persistence and downsampling."""
+
+from __future__ import annotations
+
+import json
+import threading
+from datetime import datetime, timezone, timedelta
+from math import floor
+from pathlib import Path
+from typing import List, Optional
+
+from models import UsageDataPoint, TimeRange
+
+
+class HistoryService:
+    RETENTION_DAYS = 30
+    FLUSH_INTERVAL = 300  # 5 minutes
+
+    def __init__(self):
+        self.data_points: List[UsageDataPoint] = []
+        self._dirty = False
+        self._flush_timer: Optional[threading.Timer] = None
+        self._lock = threading.Lock()
+        self._history_file = (
+            Path.home() / ".config" / "claude-usage-bar" / "history.json"
+        )
+
+    def load_history(self):
+        if not self._history_file.exists():
+            return
+        try:
+            data = json.loads(self._history_file.read_text(encoding="utf-8"))
+            points = [UsageDataPoint.from_dict(d) for d in data.get("data_points", [])]
+            self.data_points = self._pruned(points)
+        except Exception:
+            # Corrupt file - rename and start fresh
+            backup = self._history_file.with_suffix(".bak.json")
+            try:
+                if backup.exists():
+                    backup.unlink()
+                self._history_file.rename(backup)
+            except OSError:
+                pass
+            self.data_points = []
+
+    def record_data_point(self, pct_5h: float, pct_7d: float):
+        point = UsageDataPoint(pct_5h=pct_5h, pct_7d=pct_7d)
+        with self._lock:
+            self.data_points.append(point)
+            self._dirty = True
+        self._start_flush_timer()
+
+    def flush_to_disk(self):
+        with self._lock:
+            if not self._dirty:
+                return
+            self.data_points = self._pruned(self.data_points)
+            data = {"data_points": [p.to_dict() for p in self.data_points]}
+
+        self._history_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self._history_file.write_text(json.dumps(data), encoding="utf-8")
+        except OSError:
+            pass
+
+        with self._lock:
+            self._dirty = False
+            if self._flush_timer:
+                self._flush_timer.cancel()
+                self._flush_timer = None
+
+    def downsampled_points(self, time_range: TimeRange) -> List[UsageDataPoint]:
+        with self._lock:
+            all_points = list(self.data_points)
+
+        if len(all_points) <= time_range.target_points:
+            return all_points
+
+        now = datetime.now(timezone.utc)
+        range_start = now - timedelta(seconds=time_range.interval)
+        bucket_count = time_range.target_points
+        bucket_duration = time_range.interval / bucket_count
+
+        buckets: List[List[UsageDataPoint]] = [[] for _ in range(bucket_count)]
+
+        for point in all_points:
+            offset = (point.timestamp - range_start).total_seconds()
+            idx = int(offset / bucket_duration)
+            idx = max(0, min(bucket_count - 1, idx))
+            buckets[idx].append(point)
+
+        result = []
+        for bucket in buckets:
+            if not bucket:
+                continue
+            avg_5h = sum(p.pct_5h for p in bucket) / len(bucket)
+            avg_7d = sum(p.pct_7d for p in bucket) / len(bucket)
+            avg_ts = sum(p.timestamp.timestamp() for p in bucket) / len(bucket)
+            result.append(UsageDataPoint(
+                timestamp=datetime.fromtimestamp(avg_ts, tz=timezone.utc),
+                pct_5h=avg_5h,
+                pct_7d=avg_7d,
+            ))
+        return result
+
+    def _pruned(self, points: List[UsageDataPoint]) -> List[UsageDataPoint]:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.RETENTION_DAYS)
+        return [p for p in points if p.timestamp >= cutoff]
+
+    def _start_flush_timer(self):
+        if self._flush_timer is not None:
+            return
+        self._flush_timer = threading.Timer(self.FLUSH_INTERVAL, self.flush_to_disk)
+        self._flush_timer.daemon = True
+        self._flush_timer.start()
