@@ -27,6 +27,7 @@ class UsageService:
     USERINFO_ENDPOINT = "https://api.anthropic.com/api/oauth/userinfo"
     TOKEN_ENDPOINT = "https://platform.claude.com/v1/oauth/token"
     REDIRECT_URI = "https://platform.claude.com/oauth/code/callback"
+    # Public OAuth Client ID for Claude desktop apps (not a secret)
     CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     DEFAULT_SCOPES = ["user:profile", "user:inference"]
 

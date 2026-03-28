@@ -65,8 +65,8 @@ class NotificationService:
                 msg=f"{window} usage has reached {pct}%",
             )
             toast.show()
-        except Exception as e:
-            print(f"[Notification] Failed: {e}")
+        except Exception:
+            pass
 
     def _settings_file(self) -> Path:
         return Path.home() / ".config" / "claude-usage-bar" / "settings.json"
