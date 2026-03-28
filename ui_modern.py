@@ -422,6 +422,8 @@ class Api:
             try:
                 self._webview_window.show()
                 self._webview_visible = True
+                if not self._widget_mode:
+                    self._position_bottom_right()
             except Exception:
                 pass
 
