@@ -79,6 +79,42 @@ def _pct_color(pct: float) -> str:
     return RED
 
 
+def _catmull_rom_chain(pts, segments=8):
+    """Convert a list of (x, y) points into a smooth curve.
+
+    X is linearly interpolated (keeps time monotonic),
+    Y uses Catmull-Rom spline (smooth value transitions).
+    """
+    if len(pts) < 2:
+        return [c for p in pts for c in p]
+    # Extract Y values and pad for Catmull-Rom
+    ys = [p[1] for p in pts]
+    ys_padded = [ys[0]] + ys + [ys[-1]]
+    coords = []
+    for i in range(len(pts) - 1):
+        x0, x1 = pts[i][0], pts[i + 1][0]
+        # Catmull-Rom indices (shifted by 1 due to padding)
+        y0 = ys_padded[i]
+        y1 = ys_padded[i + 1]
+        y2 = ys_padded[i + 2]
+        y3 = ys_padded[i + 3]
+        for s in range(segments):
+            t = s / segments
+            t2 = t * t
+            t3 = t2 * t
+            x = x0 + (x1 - x0) * t
+            y = 0.5 * (
+                (2 * y1) +
+                (-y0 + y2) * t +
+                (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 +
+                (-y0 + 3 * y1 - 3 * y2 + y3) * t3
+            )
+            coords.extend([x, y])
+    # Add the last point
+    coords.extend([pts[-1][0], pts[-1][1]])
+    return coords
+
+
 def _rounded_rect(canvas: tk.Canvas, x1, y1, x2, y2, r, **kwargs):
     """Draw a rounded rectangle on a canvas."""
     r = min(r, (x2 - x1) // 2, (y2 - y1) // 2)
@@ -176,7 +212,8 @@ class RoundedBar(tk.Canvas):
         kwargs.setdefault("highlightthickness", 0)
         kwargs.setdefault("bd", 0)
         kwargs.setdefault("bg", BG)
-        super().__init__(parent, height=height, **kwargs)
+        # Add 2px padding so the smooth polygon isn't clipped at the bottom
+        super().__init__(parent, height=height + 2, **kwargs)
         self._bar_height = height
 
     def draw_bar(self, pct: float, width: int = 0):
@@ -637,16 +674,30 @@ class MainWindow:
             ts_max = points[-1].timestamp.timestamp()
             ts_range = max(ts_max - ts_min, 1)
 
-            coords_5h, coords_7d = [], []
+            pts_5h, pts_7d = [], []
             for p in points:
                 x = margin["l"] + ((p.timestamp.timestamp() - ts_min) / ts_range) * plot_w
-                coords_5h.extend([x, margin["t"] + plot_h * (1 - min(1, p.pct_5h))])
-                coords_7d.extend([x, margin["t"] + plot_h * (1 - min(1, p.pct_7d))])
+                pts_5h.append((x, margin["t"] + plot_h * (1 - min(1, p.pct_5h))))
+                pts_7d.append((x, margin["t"] + plot_h * (1 - min(1, p.pct_7d))))
 
-            if len(coords_7d) >= 4:
-                canvas.create_line(*coords_7d, fill=ORANGE, width=2, smooth=True)
-            if len(coords_5h) >= 4:
-                canvas.create_line(*coords_5h, fill=BLUE, width=2, smooth=True)
+            # Smooth 7d points with moving average (Y only) before spline
+            if len(pts_7d) > 5:
+                w = 5
+                half = w // 2
+                smoothed_7d = []
+                for i in range(len(pts_7d)):
+                    lo = max(0, i - half)
+                    hi = min(len(pts_7d), i + half + 1)
+                    avg_y = sum(p[1] for p in pts_7d[lo:hi]) / (hi - lo)
+                    smoothed_7d.append((pts_7d[i][0], avg_y))
+                pts_7d = smoothed_7d
+
+            if len(pts_7d) >= 2:
+                coords_7d = _catmull_rom_chain(pts_7d)
+                canvas.create_line(*coords_7d, fill=ORANGE, width=2)
+            if len(pts_5h) >= 2:
+                coords_5h = _catmull_rom_chain(pts_5h)
+                canvas.create_line(*coords_5h, fill=BLUE, width=2)
 
             self._draw_time_labels(canvas, points, margin, canvas_w, canvas_h, plot_w)
 
@@ -806,7 +857,7 @@ class ToggleSwitch(tk.Canvas):
     """Custom toggle switch widget."""
 
     def __init__(self, parent, variable: tk.BooleanVar, command=None,
-                 width=44, height=24, **kwargs):
+                 width=36, height=20, **kwargs):
         super().__init__(parent, width=width, height=height,
                          bg=BG, highlightthickness=0, bd=0, **kwargs)
         self._var = variable
@@ -822,14 +873,27 @@ class ToggleSwitch(tk.Canvas):
         w, h = self._sw_width, self._sw_height
         r = h // 2
         on = self._var.get()
-        track_color = ACCENT if on else BAR_BG
-        _rounded_rect(self, 0, 0, w, h, r, fill=track_color, outline=track_color)
-        # Knob
-        knob_r = h // 2 - 3
-        knob_x = w - h // 2 if on else h // 2
-        self.create_oval(knob_x - knob_r, h // 2 - knob_r,
-                         knob_x + knob_r, h // 2 + knob_r,
-                         fill="white", outline="white")
+        cy = h // 2
+        if on:
+            # ON: accent track + dark knob (Windows 11 style)
+            _rounded_rect(self, 0, 0, w, h, r, fill="#4cc2ff", outline="#4cc2ff")
+            knob_r = h // 2 - 3
+            knob_x = w - r
+            self.create_oval(knob_x - knob_r, cy - knob_r,
+                             knob_x + knob_r, cy + knob_r,
+                             fill="#1a1a2e", outline="#1a1a2e")
+        else:
+            # OFF: border track + light knob (Windows 11 style)
+            border_color = "#9a9aaa"
+            _rounded_rect(self, 0, 0, w, h, r,
+                          fill=border_color, outline=border_color)
+            _rounded_rect(self, 2, 2, w - 2, h - 2, r - 2,
+                          fill=BG, outline=BG)
+            knob_r = h // 2 - 5
+            knob_x = r
+            self.create_oval(knob_x - knob_r, cy - knob_r,
+                             knob_x + knob_r, cy + knob_r,
+                             fill=border_color, outline=border_color)
 
     def _on_click(self, e):
         self._var.set(not self._var.get())

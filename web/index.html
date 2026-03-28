@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#16161e">
+  <title>Claude Usage</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════ MAIN VIEW ═══════════ -->
+<div id="main-view" class="main-view">
+  <div class="title-bar" id="main-title-bar">
+    <h1>Claude Usage</h1>
+    <button class="close-btn" onclick="closeWindow()" title="Close">&times;</button>
+  </div>
+
+  <div class="content">
+    <!-- Sign In -->
+    <div id="signin-section" class="signin-section" style="display:none">
+      <p class="signin-text">
+        Sign in with your Claude account to view your API usage.
+      </p>
+      <button class="signin-btn" onclick="signIn()">Sign in with Claude</button>
+
+      <div id="code-entry" class="code-entry" style="display:none">
+        <input type="text" id="code-input" placeholder="Paste authorization code here..."
+               onkeydown="if(event.key==='Enter')submitCode()">
+        <button class="submit-btn" onclick="submitCode()">Submit Code</button>
+      </div>
+
+      <div id="error-msg" class="error-text"></div>
+    </div>
+
+    <!-- Usage (authenticated) -->
+    <div id="usage-section" style="display:none">
+      <!-- 5-Hour Window -->
+      <div class="bucket">
+        <div class="bucket-header">
+          <span class="bucket-label">5-Hour Window</span>
+          <span class="bucket-pct" id="pct-5h">--%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="bar-5h" style="width:0%"></div>
+        </div>
+        <div class="reset-time" id="reset-5h"></div>
+      </div>
+
+      <!-- 7-Day Window -->
+      <div class="bucket">
+        <div class="bucket-header">
+          <span class="bucket-label">7-Day Window</span>
+          <span class="bucket-pct" id="pct-7d">--%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="bar-7d" style="width:0%"></div>
+        </div>
+        <div class="reset-time" id="reset-7d"></div>
+      </div>
+
+      <!-- Model Breakdown -->
+      <div id="model-breakdown" style="display:none">
+        <div class="bucket bucket-sub" id="bucket-opus" style="display:none">
+          <div class="bucket-header">
+            <span class="bucket-label">Opus</span>
+            <span class="bucket-pct" id="pct-opus">--%</span>
+          </div>
+          <div class="progress-bar" style="height:8px">
+            <div class="progress-fill" id="bar-opus" style="width:0%;height:100%"></div>
+          </div>
+        </div>
+        <div class="bucket bucket-sub" id="bucket-sonnet" style="display:none">
+          <div class="bucket-header">
+            <span class="bucket-label">Sonnet</span>
+            <span class="bucket-pct" id="pct-sonnet">--%</span>
+          </div>
+          <div class="progress-bar" style="height:8px">
+            <div class="progress-fill" id="bar-sonnet" style="width:0%;height:100%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extra Usage -->
+      <div id="extra-section" class="extra-usage" style="display:none">
+        <div class="separator"></div>
+        <div class="extra-header">
+          <span class="extra-label">Extra Usage</span>
+          <span class="extra-amount" id="extra-amount"></span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="bar-extra" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-section">
+        <div class="separator"></div>
+        <div class="range-selector" id="range-selector">
+          <button class="range-btn" data-range="1h">1h</button>
+          <button class="range-btn active" data-range="6h">6h</button>
+          <button class="range-btn" data-range="1d">1d</button>
+          <button class="range-btn" data-range="7d">7d</button>
+          <button class="range-btn" data-range="30d">30d</button>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="usage-chart"></canvas>
+        </div>
+        <div class="chart-legend">
+          <span><span class="dot" style="background:var(--blue)"></span> 5h</span>
+          <span><span class="dot" style="background:var(--orange)"></span> 7d</span>
+        </div>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="bottom-bar">
+        <div class="separator"></div>
+        <div class="bottom-row">
+          <span class="updated-text" id="updated-text">Updated --</span>
+          <div class="action-links">
+            <button class="action-link" onclick="refresh()">Refresh</button>
+            <button class="action-link" onclick="showSettings()">Settings</button>
+            <button class="action-link" onclick="quit()">Quit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SETTINGS VIEW ═══════════ -->
+<div id="settings-view" class="settings-view">
+  <div class="title-bar">
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="back-btn" onclick="hideSettings()">&larr;</button>
+      <h1>Settings</h1>
+    </div>
+    <button class="close-btn" onclick="closeWindow()" title="Close">&times;</button>
+  </div>
+
+  <div class="content">
+    <!-- General -->
+    <div class="settings-section">
+      <h3>General</h3>
+      <div class="toggle-row">
+        <label>Launch at Login</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="settings-startup-toggle"
+                 onchange="toggleStartup(this.checked)">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+
+      <div style="margin-top:10px">
+        <div class="slider-header">
+          <span class="slider-label">Polling Interval</span>
+        </div>
+        <div class="poll-selector" id="poll-selector">
+          <button class="poll-btn" data-minutes="5">5m</button>
+          <button class="poll-btn" data-minutes="15">15m</button>
+          <button class="poll-btn active" data-minutes="30">30m</button>
+          <button class="poll-btn" data-minutes="60">1h</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <!-- Notifications -->
+    <div class="settings-section">
+      <h3>Notifications</h3>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">5-Hour Alert</span>
+          <span class="slider-value" id="val-5h">Off</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="0"
+               id="slider-5h" oninput="updateSlider('5h', this.value)">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">7-Day Alert</span>
+          <span class="slider-value" id="val-7d">Off</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="0"
+               id="slider-7d" oninput="updateSlider('7d', this.value)">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">Extra Usage Alert</span>
+          <span class="slider-value" id="val-extra">Off</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="0"
+               id="slider-extra" oninput="updateSlider('extra', this.value)">
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <!-- Account -->
+    <div class="settings-section">
+      <h3>Account</h3>
+      <div class="account-info">
+        <span class="account-email" id="account-email">--</span>
+        <button class="signout-btn" onclick="signOut()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <!-- About -->
+    <div class="settings-section">
+      <div class="about-row">
+        <span class="about-label">Claude Usage Bar</span>
+        <span class="about-version">v1.0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="chart.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
