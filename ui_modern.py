@@ -477,18 +477,24 @@ class Api:
             return None
 
     def _get_window_pos(self) -> dict:
-        """Get current window position."""
+        """Get current window position and DPI scale factor."""
         try:
             import ctypes
             import ctypes.wintypes
             hwnd = self._get_hwnd()
             if not hwnd:
-                return {'x': 0, 'y': 0}
+                return {'x': 0, 'y': 0, 'dpi_scale': 1.0}
             rect = ctypes.wintypes.RECT()
             ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
-            return {'x': rect.left, 'y': rect.top}
+            # Get DPI for the monitor this window is on
+            try:
+                dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+                dpi_scale = dpi / 96.0
+            except Exception:
+                dpi_scale = 1.0
+            return {'x': rect.left, 'y': rect.top, 'dpi_scale': dpi_scale}
         except Exception:
-            return {'x': 0, 'y': 0}
+            return {'x': 0, 'y': 0, 'dpi_scale': 1.0}
 
     def _move_window(self, x: int, y: int):
         """Move window to absolute position."""

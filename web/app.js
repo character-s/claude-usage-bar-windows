@@ -438,12 +438,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target.closest('.close-btn')) return;
         e.preventDefault();
         const pos = await fetch('/api/window-pos').then(r => r.json());
-        drag = { sx: e.screenX, sy: e.screenY, wx: pos.x, wy: pos.y };
+        drag = { sx: e.screenX, sy: e.screenY, wx: pos.x, wy: pos.y, scale: pos.dpi_scale || 1 };
       });
       document.addEventListener('mousemove', (e) => {
         if (!drag) return;
-        const x = drag.wx + (e.screenX - drag.sx);
-        const y = drag.wy + (e.screenY - drag.sy);
+        const x = drag.wx + Math.round((e.screenX - drag.sx) * drag.scale);
+        const y = drag.wy + Math.round((e.screenY - drag.sy) * drag.scale);
         fetch('/api/move-window', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
