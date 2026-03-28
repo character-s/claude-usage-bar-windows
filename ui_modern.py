@@ -163,9 +163,18 @@ class Api:
 
         @app.post('/api/exit-widget')
         def exit_widget():
-            """Exit widget mode and hide window."""
+            """Exit widget mode, switch to popup, and hide window."""
             if self._on_exit_widget_callback:
                 self._on_exit_widget_callback()
+            # Switch back to popup mode URL before hiding
+            if self._webview_window:
+                try:
+                    self._webview_window.load_url(
+                        f'http://127.0.0.1:{self.port}?mode=popup'
+                    )
+                except Exception:
+                    pass
+            self._position_bottom_right()
             self.hide_browser()
             return self._json_response({'ok': True})
 
