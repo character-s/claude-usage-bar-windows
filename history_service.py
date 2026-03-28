@@ -97,13 +97,15 @@ class HistoryService:
         for bucket in buckets:
             if not bucket:
                 continue
-            avg_5h = sum(p.pct_5h for p in bucket) / len(bucket)
-            avg_7d = sum(p.pct_7d for p in bucket) / len(bucket)
-            avg_ts = sum(p.timestamp.timestamp() for p in bucket) / len(bucket)
+            # Use max to preserve peaks (not average which hides spikes)
+            max_5h = max(p.pct_5h for p in bucket)
+            max_7d = max(p.pct_7d for p in bucket)
+            # Use timestamp of the peak point
+            peak = max(bucket, key=lambda p: p.pct_5h + p.pct_7d)
             result.append(UsageDataPoint(
-                timestamp=datetime.fromtimestamp(avg_ts, tz=timezone.utc),
-                pct_5h=avg_5h,
-                pct_7d=avg_7d,
+                timestamp=peak.timestamp,
+                pct_5h=max_5h,
+                pct_7d=max_7d,
             ))
         return result
 
