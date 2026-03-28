@@ -73,10 +73,6 @@ class Api:
         def index():
             return static_file('index.html', root=_web_dir())
 
-        @app.route('/<filepath:path>')
-        def serve_static(filepath):
-            return static_file(filepath, root=_web_dir())
-
         @app.route('/api/usage')
         def get_usage():
             return self._json_response(self._get_usage())
@@ -192,6 +188,11 @@ class Api:
             self._position_bottom_right()
             self.hide_browser()
             return self._json_response({'ok': True})
+
+        # Static file route MUST be last (catch-all)
+        @app.route('/<filepath:path>')
+        def serve_static(filepath):
+            return static_file(filepath, root=_web_dir())
 
     # ── Data serialization ──
 
