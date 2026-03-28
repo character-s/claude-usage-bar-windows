@@ -530,7 +530,7 @@ class Api:
             pass
 
     def _position_bottom_right(self):
-        """Reposition the window to bottom-right corner."""
+        """Reposition the window to bottom-right corner of PRIMARY monitor."""
         try:
             import ctypes
             import ctypes.wintypes
@@ -544,16 +544,17 @@ class Api:
                 ]
 
             user32 = ctypes.windll.user32
-            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
-            user32.FindWindowW.restype = ctypes.wintypes.HWND
-            hwnd = user32.FindWindowW(None, 'Claude Usage')
+            hwnd = self._get_hwnd()
             if not hwnd:
                 return
             wr = ctypes.wintypes.RECT()
             user32.GetWindowRect(hwnd, ctypes.byref(wr))
             actual_w = wr.right - wr.left
             actual_h = wr.bottom - wr.top
-            monitor = user32.MonitorFromWindow(hwnd, 2)
+            # Use primary monitor (point 0,0 is always on primary)
+            MONITOR_DEFAULTTOPRIMARY = 1
+            pt = ctypes.wintypes.POINT(0, 0)
+            monitor = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY)
             mi = MONITORINFO()
             mi.cbSize = ctypes.sizeof(MONITORINFO)
             user32.GetMonitorInfoW(monitor, ctypes.byref(mi))
