@@ -112,7 +112,7 @@ async function refreshData() {
     document.getElementById('pct-opus').textContent = `${Math.round(usage.opus_util)}%`;
     document.getElementById('pct-opus').style.color = pctColor(opusPct);
     const barOpus = document.getElementById('bar-opus');
-    barOpus.style.width = `${Math.max(1, usage.opus_util)}%`;
+    barOpus.style.width = `${usage.opus_util > 0 ? Math.max(2, usage.opus_util) : 0}%`;
     barOpus.style.background = pctColor(opusPct);
   } else {
     document.getElementById('bucket-opus').style.display = 'none';
@@ -124,7 +124,7 @@ async function refreshData() {
     document.getElementById('pct-sonnet').textContent = `${Math.round(usage.sonnet_util)}%`;
     document.getElementById('pct-sonnet').style.color = pctColor(sonnetPct);
     const barSonnet = document.getElementById('bar-sonnet');
-    barSonnet.style.width = `${Math.max(1, usage.sonnet_util)}%`;
+    barSonnet.style.width = `${usage.sonnet_util > 0 ? Math.max(2, usage.sonnet_util) : 0}%`;
     barSonnet.style.background = pctColor(sonnetPct);
   } else {
     document.getElementById('bucket-sonnet').style.display = 'none';
@@ -138,7 +138,8 @@ async function refreshData() {
       `${usage.extra_used_str} / ${usage.extra_limit_str}`;
     const extraPct = (usage.extra_util || 0) / 100;
     const barExtra = document.getElementById('bar-extra');
-    barExtra.style.width = `${Math.max(1, usage.extra_util || 0)}%`;
+    const extraUtil = usage.extra_util || 0;
+    barExtra.style.width = `${extraUtil > 0 ? Math.max(2, extraUtil) : 0}%`;
     barExtra.style.background = pctColor(extraPct);
   } else {
     extraEl.style.display = 'none';

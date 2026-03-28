@@ -117,7 +117,6 @@ body {
   height: 100%;
   border-radius: 7px;
   transition: width 0.5s ease;
-  min-width: 14px;
 }
 
 .reset-time {
