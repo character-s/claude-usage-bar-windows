@@ -1,5 +1,7 @@
 # Claude Usage Bar for Windows
 
+> [日本語はこちら](#claude-usage-bar-for-windows-日本語)
+
 Windows system tray application that monitors your Claude Pro/Team usage in real-time.
 
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
