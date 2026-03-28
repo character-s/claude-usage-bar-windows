@@ -141,9 +141,9 @@ class UsageDataPoint:
 class TimeRange(Enum):
     HOUR_1 = ("1h", 3600, 60)
     HOUR_6 = ("6h", 6 * 3600, 80)
-    DAY_1 = ("1d", 86400, 150)
-    DAY_7 = ("7d", 7 * 86400, 200)
-    DAY_30 = ("30d", 30 * 86400, 300)
+    DAY_1 = ("1d", 86400, 288)
+    DAY_7 = ("7d", 7 * 86400, 500)
+    DAY_30 = ("30d", 30 * 86400, 1000)
 
     def __init__(self, label: str, interval: float, target_points: int):
         self.label = label
