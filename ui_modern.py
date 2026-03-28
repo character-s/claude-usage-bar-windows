@@ -357,53 +357,17 @@ class Api:
         self._webview_window.events.closing += _on_closing
 
         def _on_shown():
-            """Move window to bottom-right using the window's own monitor info."""
-            try:
-                import ctypes
-                import ctypes.wintypes
+            """Move window to bottom-right after it's fully created."""
+            import time
+            # Wait briefly for HWND to become available
+            time.sleep(0.3)
+            self._position_bottom_right()
 
-                class MONITORINFO(ctypes.Structure):
-                    _fields_ = [
-                        ("cbSize", ctypes.wintypes.DWORD),
-                        ("rcMonitor", ctypes.wintypes.RECT),
-                        ("rcWork", ctypes.wintypes.RECT),
-                        ("dwFlags", ctypes.wintypes.DWORD),
-                    ]
+            if self._widget_mode:
+                self._set_topmost(True)
 
-                user32 = ctypes.windll.user32
-                user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
-                user32.FindWindowW.restype = ctypes.wintypes.HWND
-
-                hwnd = user32.FindWindowW(None, 'Claude Usage')
-                if not hwnd:
-                    return
-
-                # Get actual window size
-                wr = ctypes.wintypes.RECT()
-                user32.GetWindowRect(hwnd, ctypes.byref(wr))
-                actual_w = wr.right - wr.left
-                actual_h = wr.bottom - wr.top
-
-                # Get work area of the monitor the window is on
-                monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
-                mi = MONITORINFO()
-                mi.cbSize = ctypes.sizeof(MONITORINFO)
-                user32.GetMonitorInfoW(monitor, ctypes.byref(mi))
-
-                x = mi.rcWork.right - actual_w
-                y = mi.rcWork.bottom - actual_h
-                user32.SetWindowPos(hwnd, None, x, y, 0, 0, 0x0001 | 0x0004)
-
-                # Apply topmost if widget mode is active
-                if self._widget_mode:
-                    HWND_TOPMOST = -1
-                    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0002 | 0x0001)
-
-                # Silent mode: hide window immediately after positioning
-                if hidden:
-                    self.hide_browser()
-            except Exception:
-                pass
+            if hidden:
+                self.hide_browser()
 
         self._webview_window.events.shown += _on_shown
 
