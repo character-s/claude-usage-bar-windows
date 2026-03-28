@@ -346,6 +346,7 @@ class Api:
             height=win_h,
             frameless=True,
             easy_drag=False,
+            hidden=True,
         )
 
         def _on_closing():
@@ -356,20 +357,20 @@ class Api:
 
         self._webview_window.events.closing += _on_closing
 
-        def _on_shown():
-            """Move window to bottom-right after it's fully created."""
+        def _on_loaded():
+            """Position window after content loads, then show."""
             import time
-            # Wait briefly for HWND to become available
             time.sleep(0.3)
             self._position_bottom_right()
 
             if self._widget_mode:
                 self._set_topmost(True)
 
-            if hidden:
-                self.hide_browser()
+            if not hidden:
+                self._webview_window.show()
+                self._webview_visible = True
 
-        self._webview_window.events.shown += _on_shown
+        self._webview_window.events.loaded += _on_loaded
 
         storage = os.path.join(
             os.environ.get('LOCALAPPDATA', ''),
