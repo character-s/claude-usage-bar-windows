@@ -417,8 +417,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (titleBar) titleBar.style.display = 'none';
     // Add top padding to content
     document.querySelector('.content').style.paddingTop = '12px';
-    // Disable drag in popup mode (easy_drag=True makes whole window draggable by default)
-    document.body.style.webkitAppRegion = 'no-drag';
+
 
     // Auto-hide when losing focus (popover behavior)
     window.addEventListener('blur', () => {
