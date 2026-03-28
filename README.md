@@ -119,3 +119,123 @@ This project is a Windows port inspired by [claude-usage-bar](https://github.com
 ## License
 
 BSD 2-Clause License. See [LICENSE](LICENSE) for details.
+
+---
+
+# Claude Usage Bar for Windows (日本語)
+
+Claude Pro/Team の使用量をリアルタイムで監視する Windows システムトレイアプリケーションです。
+
+## 機能
+
+- **システムトレイアイコン** — 現在の使用率をタスクバーに直接表示。色分けで一目瞭然（緑 → 黄 → 橙 → 赤）
+- **フレームレスポップアップ** — 画面右下に表示されるモダンなダークUI
+- **使用量トラッキング** — 5時間・7日間の使用枠を監視。モデル別内訳（Opus / Sonnet）対応
+- **Extra Usage** — 有料追加クレジットの消費量を追跡
+- **履歴チャート** — 1時間 / 6時間 / 1日 / 7日 / 30日の使用推移を可視化
+- **通知** — 設定した閾値を超えるとWindowsトースト通知でアラート
+- **自動ポーリング** — 取得間隔を設定可能（5分 / 15分 / 30分 / 1時間）
+- **スタートアップ登録** — Windows起動時に自動でサイレント起動
+
+## インストール
+
+### リリースから（推奨）
+
+[Releases](https://github.com/character-s/claude-usage-bar-windows/releases) から `ClaudeUsageBarModern.exe` をダウンロードして実行するだけです。インストール不要。
+
+### ソースから
+
+```bash
+git clone https://github.com/character-s/claude-usage-bar-windows.git
+cd claude-usage-bar-windows
+
+pip install -r requirements.txt
+pip install bottle pywebview
+# Python 3.13以降はpythonnetのプレリリース版が必要:
+pip install pythonnet --pre
+
+python main_modern.py
+```
+
+#### 依存パッケージ
+
+| パッケージ | 用途 |
+|-----------|------|
+| pystray | システムトレイアイコン |
+| Pillow | トレイアイコン描画 |
+| requests | Anthropic API通信 |
+| winotify | Windowsトースト通知 |
+| bottle | ローカルRESTサーバー |
+| pywebview | フレームレスWebViewウィンドウ |
+| pythonnet | WebView2バックエンド（EdgeChromium） |
+
+## 使い方
+
+1. アプリを起動するとタスクバーにトレイアイコンが表示されます
+2. トレイアイコンをクリックしてポップアップウィンドウを開きます
+3. **Sign in with Claude** をクリックしてOAuth認証を完了します
+4. 使用量データが表示され、自動更新されます
+
+### トレイアイコン
+
+- **左クリック** — ポップアップの表示/非表示
+- **右クリック** — コンテキストメニュー（表示モード、ウィジェットモード、更新、終了）
+- アイコンには現在の使用率が色付きで表示されます
+
+### 設定
+
+ポップアップ内の **Settings** リンクからアクセス:
+
+- **ポーリング間隔** — 使用量の取得頻度（5分 / 15分 / 30分 / 1時間）
+- **通知閾値** — 5時間枠・7日間枠・Extra使用量がしきい値を超えた時にアラート
+- **スタートアップ登録** — Windows起動時に自動起動（サイレントモード）
+
+## ビルド
+
+```bash
+pip install pyinstaller
+python -m PyInstaller build_modern.spec --noconfirm
+```
+
+出力: `dist/ClaudeUsageBarModern.exe`
+
+## アーキテクチャ
+
+```
+main_modern.py          エントリポイント
+├── usage_service.py    OAuth認証 + APIポーリング
+├── history_service.py  使用履歴の永続化
+├── notification_service.py  Windowsトースト通知
+├── credentials_store.py     トークン保存
+├── tray_icon.py        動的トレイアイコン描画
+├── ui_modern.py        Bottle APIサーバー + pywebviewウィンドウ
+└── web/
+    ├── index.html      UIマークアップ
+    ├── style.css       Windows 11ダークテーマ
+    ├── app.js          フロントエンドロジック
+    └── chart.min.js    Chart.js（バンドル済み）
+```
+
+**スレッドモデル:**
+- メインスレッド: pywebview（COM初期化が必要）
+- バックグラウンド: pystray（システムトレイ）
+- バックグラウンド: Bottle RESTサーバー
+- バックグラウンド: 使用量ポーリング
+
+## データ保存先
+
+全データは `~/.config/claude-usage-bar/` にローカル保存:
+
+| ファイル | 内容 |
+|---------|------|
+| `credentials.json` | OAuthトークン |
+| `history.json` | 使用履歴（30日間保持） |
+| `settings.json` | ポーリング間隔、通知閾値、設定 |
+
+## クレジット
+
+本プロジェクトは [claude-usage-bar](https://github.com/Blimp-Labs/claude-usage-bar)（[Krystian (Blimp Labs)](https://github.com/Blimp-Labs) 作）にインスパイアされた Windows 移植版です。UIデザインとコンセプトは元プロジェクトに由来します。macOS専用（Swift）の元版をWindowsで使うため、Pythonで新規開発しました。
+
+## ライセンス
+
+BSD 2-Clause License。詳細は [LICENSE](LICENSE) を参照。
