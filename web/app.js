@@ -421,6 +421,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }, 200);
     });
+  } else if (appMode === 'widget') {
+    // Widget mode: show title bar (drag handle), no auto-hide
+    const titleBar = document.getElementById('main-title-bar');
+    if (titleBar) titleBar.style.display = '';
   }
 
   initChart();

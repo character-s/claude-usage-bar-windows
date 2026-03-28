@@ -53,6 +53,7 @@ class Api:
         self.port = _find_free_port()
         self._webview_window: Optional[webview.Window] = None
         self._webview_visible = True
+        self._widget_mode = False
 
     def set_quit_callback(self, callback):
         self._quit_callback = callback
@@ -146,8 +147,15 @@ class Api:
         @app.post('/api/hide')
         def hide_window():
             """Called by JS when window loses focus."""
-            self.hide_browser()
+            if not self._widget_mode:
+                self.hide_browser()
             return self._json_response({'ok': True})
+
+        @app.route('/api/mode')
+        def get_mode():
+            return self._json_response({
+                'mode': 'widget' if self._widget_mode else 'popup',
+            })
 
     # ── Data serialization ──
 
@@ -291,7 +299,8 @@ class Api:
         phys_x = work_w - win_w
         phys_y = work_h - win_h
 
-        url = f'http://127.0.0.1:{self.port}?mode=popup'
+        mode = 'widget' if self._widget_mode else 'popup'
+        url = f'http://127.0.0.1:{self.port}?mode={mode}'
 
         self._webview_window = webview.create_window(
             'Claude Usage',
@@ -347,6 +356,11 @@ class Api:
                 x = mi.rcWork.right - actual_w
                 y = mi.rcWork.bottom - actual_h
                 user32.SetWindowPos(hwnd, None, x, y, 0, 0, 0x0001 | 0x0004)
+
+                # Apply topmost if widget mode is active
+                if self._widget_mode:
+                    HWND_TOPMOST = -1
+                    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0002 | 0x0001)
             except Exception:
                 pass
 
@@ -386,6 +400,87 @@ class Api:
 
     def close_browser(self):
         self.hide_browser()
+
+    def enter_widget_mode(self):
+        """Switch to widget mode: always visible, topmost, draggable."""
+        self._widget_mode = True
+        if self._webview_window:
+            try:
+                self._webview_window.load_url(
+                    f'http://127.0.0.1:{self.port}?mode=widget'
+                )
+                self._webview_window.show()
+                self._webview_visible = True
+                self._set_topmost(True)
+            except Exception:
+                pass
+
+    def exit_widget_mode(self):
+        """Switch back to popup mode."""
+        self._widget_mode = False
+        if self._webview_window:
+            try:
+                self._webview_window.load_url(
+                    f'http://127.0.0.1:{self.port}?mode=popup'
+                )
+                self._set_topmost(False)
+                self._position_bottom_right()
+            except Exception:
+                pass
+
+    def _set_topmost(self, topmost: bool):
+        """Set or clear HWND_TOPMOST on the webview window."""
+        try:
+            import ctypes
+            import ctypes.wintypes
+            user32 = ctypes.windll.user32
+            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+            user32.FindWindowW.restype = ctypes.wintypes.HWND
+            hwnd = user32.FindWindowW(None, 'Claude Usage')
+            if not hwnd:
+                return
+            HWND_TOPMOST = -1
+            HWND_NOTOPMOST = -2
+            insert_after = HWND_TOPMOST if topmost else HWND_NOTOPMOST
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+        except Exception:
+            pass
+
+    def _position_bottom_right(self):
+        """Reposition the window to bottom-right corner."""
+        try:
+            import ctypes
+            import ctypes.wintypes
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.wintypes.DWORD),
+                    ("rcMonitor", ctypes.wintypes.RECT),
+                    ("rcWork", ctypes.wintypes.RECT),
+                    ("dwFlags", ctypes.wintypes.DWORD),
+                ]
+
+            user32 = ctypes.windll.user32
+            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+            user32.FindWindowW.restype = ctypes.wintypes.HWND
+            hwnd = user32.FindWindowW(None, 'Claude Usage')
+            if not hwnd:
+                return
+            wr = ctypes.wintypes.RECT()
+            user32.GetWindowRect(hwnd, ctypes.byref(wr))
+            actual_w = wr.right - wr.left
+            actual_h = wr.bottom - wr.top
+            monitor = user32.MonitorFromWindow(hwnd, 2)
+            mi = MONITORINFO()
+            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            user32.GetMonitorInfoW(monitor, ctypes.byref(mi))
+            x = mi.rcWork.right - actual_w
+            y = mi.rcWork.bottom - actual_h
+            user32.SetWindowPos(hwnd, None, x, y, 0, 0, 0x0001 | 0x0004)
+        except Exception:
+            pass
 
     def shutdown_browser(self):
         """Destroy the webview window (causes run_webview_main to return)."""

@@ -28,6 +28,7 @@ class ClaudeUsageBarModernApp:
         self.notification_service = NotificationService()
 
         self.tray_display_mode = self._load_tray_mode()
+        self._widget_mode = self._load_widget_mode()
 
         self.api = Api(self.service, self.history_service, self.notification_service)
         self.api.set_quit_callback(self._on_quit)
@@ -42,6 +43,10 @@ class ClaudeUsageBarModernApp:
             self.service.start_polling()
 
         self.service.on_update = self._on_usage_update
+
+        # Apply saved widget mode
+        if self._widget_mode:
+            self.api._widget_mode = True
 
         # Start Bottle server
         self.api.start_server()
@@ -61,25 +66,30 @@ class ClaudeUsageBarModernApp:
         icon_image = self._current_icon()
 
         menu = pystray.Menu(
-            pystray.MenuItem("Open", self._on_tray_click, default=True),
+            pystray.MenuItem("開く", self._on_tray_click, default=True),
             pystray.MenuItem(
-                "Tray Display",
+                "ウィジェットモード",
+                self._on_toggle_widget,
+                checked=lambda item: self._widget_mode,
+            ),
+            pystray.MenuItem(
+                "トレイ表示",
                 pystray.Menu(
                     pystray.MenuItem(
-                        "5-Hour",
+                        "5時間",
                         self._set_tray_5h,
                         checked=lambda item: self.tray_display_mode == "5h",
                     ),
                     pystray.MenuItem(
-                        "7-Day",
+                        "7日間",
                         self._set_tray_7d,
                         checked=lambda item: self.tray_display_mode == "7d",
                     ),
                 ),
             ),
-            pystray.MenuItem("Refresh", self._on_refresh),
+            pystray.MenuItem("更新", self._on_refresh),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quit", self._on_quit),
+            pystray.MenuItem("終了", self._on_quit),
         )
 
         self.tray_icon = pystray.Icon(
@@ -125,7 +135,10 @@ class ClaudeUsageBarModernApp:
             self._update_icon()
 
     def _on_tray_click(self, icon=None, item=None):
-        self.api.toggle_browser()
+        if self._widget_mode:
+            self.api.show_browser()
+        else:
+            self.api.toggle_browser()
 
     def _on_refresh(self, icon=None, item=None):
         threading.Thread(target=self.service.fetch_usage, daemon=True).start()
@@ -140,6 +153,14 @@ class ClaudeUsageBarModernApp:
                 self.tray_icon.stop()
             except Exception:
                 pass
+
+    def _on_toggle_widget(self, icon=None, item=None):
+        self._widget_mode = not self._widget_mode
+        self._save_widget_mode(self._widget_mode)
+        if self._widget_mode:
+            self.api.enter_widget_mode()
+        else:
+            self.api.exit_widget_mode()
 
     def _set_tray_5h(self, icon=None, item=None):
         self.tray_display_mode = "5h"
@@ -162,6 +183,28 @@ class ClaudeUsageBarModernApp:
             except Exception:
                 pass
         return "5h"
+
+    @staticmethod
+    def _load_widget_mode() -> bool:
+        if SETTINGS_FILE.exists():
+            try:
+                data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+                return bool(data.get("widget_mode", False))
+            except Exception:
+                pass
+        return False
+
+    @staticmethod
+    def _save_widget_mode(enabled: bool):
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        settings = {}
+        if SETTINGS_FILE.exists():
+            try:
+                settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        settings["widget_mode"] = enabled
+        SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
     @staticmethod
     def _save_tray_mode(mode: str):
