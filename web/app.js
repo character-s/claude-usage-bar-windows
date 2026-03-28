@@ -428,9 +428,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 200);
     });
   } else if (appMode === 'widget') {
-    // Widget mode: show title bar (drag handle via CSS -webkit-app-region: drag), no auto-hide
+    // Widget mode: show title bar, no auto-hide
     const titleBar = document.getElementById('main-title-bar');
-    if (titleBar) titleBar.style.display = '';
+    if (titleBar) {
+      titleBar.style.display = '';
+      // Drag via JS mouse events + Win32 move
+      let drag = null;
+      titleBar.addEventListener('mousedown', async (e) => {
+        if (e.target.closest('.close-btn')) return;
+        e.preventDefault();
+        const pos = await fetch('/api/window-pos').then(r => r.json());
+        drag = { sx: e.screenX, sy: e.screenY, wx: pos.x, wy: pos.y };
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!drag) return;
+        const x = drag.wx + (e.screenX - drag.sx);
+        const y = drag.wy + (e.screenY - drag.sy);
+        fetch('/api/move-window', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ x, y }),
+        });
+      });
+      document.addEventListener('mouseup', () => { drag = null; });
+    }
   }
 
   initChart();

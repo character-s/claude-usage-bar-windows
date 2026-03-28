@@ -161,6 +161,21 @@ class Api:
                 'mode': 'widget' if self._widget_mode else 'popup',
             })
 
+        @app.route('/api/window-pos')
+        def get_window_pos():
+            """Return current window position for JS drag."""
+            pos = self._get_window_pos()
+            return self._json_response(pos)
+
+        @app.post('/api/move-window')
+        def move_window():
+            """Move window to absolute position."""
+            data = request.json or {}
+            x = int(data.get('x', 0))
+            y = int(data.get('y', 0))
+            self._move_window(x, y)
+            return self._json_response({'ok': True})
+
         @app.post('/api/exit-widget')
         def exit_widget():
             """Exit widget mode, switch to popup, and hide window."""
@@ -329,7 +344,7 @@ class Api:
             width=win_w,
             height=win_h,
             frameless=True,
-            easy_drag=True,
+            easy_drag=False,
         )
 
         def _on_closing():
@@ -448,6 +463,45 @@ class Api:
                 self._position_bottom_right()
             except Exception:
                 pass
+
+    def _get_hwnd(self):
+        """Get the HWND for the webview window."""
+        try:
+            import ctypes
+            import ctypes.wintypes
+            user32 = ctypes.windll.user32
+            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+            user32.FindWindowW.restype = ctypes.wintypes.HWND
+            return user32.FindWindowW(None, 'Claude Usage')
+        except Exception:
+            return None
+
+    def _get_window_pos(self) -> dict:
+        """Get current window position."""
+        try:
+            import ctypes
+            import ctypes.wintypes
+            hwnd = self._get_hwnd()
+            if not hwnd:
+                return {'x': 0, 'y': 0}
+            rect = ctypes.wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            return {'x': rect.left, 'y': rect.top}
+        except Exception:
+            return {'x': 0, 'y': 0}
+
+    def _move_window(self, x: int, y: int):
+        """Move window to absolute position."""
+        try:
+            import ctypes
+            hwnd = self._get_hwnd()
+            if not hwnd:
+                return
+            SWP_NOSIZE = 0x0001
+            SWP_NOZORDER = 0x0004
+            ctypes.windll.user32.SetWindowPos(hwnd, None, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER)
+        except Exception:
+            pass
 
     def _set_topmost(self, topmost: bool):
         """Set or clear HWND_TOPMOST on the webview window."""
