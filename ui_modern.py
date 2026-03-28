@@ -161,12 +161,6 @@ class Api:
                 'mode': 'widget' if self._widget_mode else 'popup',
             })
 
-        @app.post('/api/start-drag')
-        def start_drag():
-            """Initiate native window drag via Win32."""
-            threading.Thread(target=self._start_native_drag, daemon=True).start()
-            return self._json_response({'ok': True})
-
         @app.post('/api/exit-widget')
         def exit_widget():
             """Exit widget mode and hide window."""
@@ -326,7 +320,7 @@ class Api:
             width=win_w,
             height=win_h,
             frameless=True,
-            easy_drag=False,
+            easy_drag=True,
         )
 
         def _on_closing():
@@ -445,24 +439,6 @@ class Api:
                 self._position_bottom_right()
             except Exception:
                 pass
-
-    def _start_native_drag(self):
-        """Trigger native Win32 window drag (title bar drag)."""
-        try:
-            import ctypes
-            import ctypes.wintypes
-            user32 = ctypes.windll.user32
-            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
-            user32.FindWindowW.restype = ctypes.wintypes.HWND
-            hwnd = user32.FindWindowW(None, 'Claude Usage')
-            if not hwnd:
-                return
-            WM_NCLBUTTONDOWN = 0x00A1
-            HTCAPTION = 2
-            user32.ReleaseCapture()
-            user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
-        except Exception:
-            pass
 
     def _set_topmost(self, topmost: bool):
         """Set or clear HWND_TOPMOST on the webview window."""

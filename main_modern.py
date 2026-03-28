@@ -161,6 +161,12 @@ class ClaudeUsageBarModernApp:
         self._save_widget_mode(False)
         self.api._widget_mode = False
         self.api._set_topmost(False)
+        # Update tray menu checked state
+        if self.tray_icon:
+            try:
+                self.tray_icon.update_menu()
+            except Exception:
+                pass
 
     def _on_toggle_widget(self, icon=None, item=None):
         self._widget_mode = not self._widget_mode

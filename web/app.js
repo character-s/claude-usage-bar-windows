@@ -427,17 +427,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 200);
     });
   } else if (appMode === 'widget') {
-    // Widget mode: show title bar (drag handle), no auto-hide
+    // Widget mode: show title bar (drag handle via CSS -webkit-app-region: drag), no auto-hide
     const titleBar = document.getElementById('main-title-bar');
-    if (titleBar) {
-      titleBar.style.display = '';
-      // Enable native Win32 drag on title bar mousedown
-      titleBar.addEventListener('mousedown', (e) => {
-        // Don't drag if clicking the close button
-        if (e.target.closest('.close-btn')) return;
-        fetch('/api/start-drag', { method: 'POST' }).catch(() => {});
-      });
-    }
+    if (titleBar) titleBar.style.display = '';
   }
 
   initChart();

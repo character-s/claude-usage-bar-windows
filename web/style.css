@@ -72,6 +72,7 @@ body {
   padding: 0 16px;
   overflow-y: auto;
   max-height: 100vh;
+  -webkit-app-region: no-drag;
 }
 
 .content::-webkit-scrollbar { width: 4px; }
