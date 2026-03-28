@@ -4,7 +4,7 @@ Windows system tray application that monitors your Claude Pro/Team usage in real
 
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078d4)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-BSD--2--Clause-green)
 
 ## Features
 
@@ -112,6 +112,10 @@ All data is stored locally at `~/.config/claude-usage-bar/`:
 | `history.json` | Usage history (30-day retention) |
 | `settings.json` | Polling interval, thresholds, preferences |
 
+## Credits
+
+This project is a Windows port inspired by [claude-usage-bar](https://github.com/Blimp-Labs/claude-usage-bar) by [Krystian (Blimp Labs)](https://github.com/Blimp-Labs) — the original macOS menu bar app for tracking Claude usage. The UI design and core concept originate from that project. Built from scratch in Python for Windows, as the original is macOS-only (Swift).
+
 ## License
 
-MIT
+BSD 2-Clause License. See [LICENSE](LICENSE) for details.
