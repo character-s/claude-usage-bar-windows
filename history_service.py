@@ -70,14 +70,18 @@ class HistoryService:
                 self._flush_timer = None
 
     def downsampled_points(self, time_range: TimeRange) -> List[UsageDataPoint]:
+        now = datetime.now(timezone.utc)
+        range_start = now - timedelta(seconds=time_range.interval)
+
         with self._lock:
-            all_points = list(self.data_points)
+            all_points = [p for p in self.data_points if p.timestamp >= range_start]
+
+        if not all_points:
+            return []
 
         if len(all_points) <= time_range.target_points:
             return all_points
 
-        now = datetime.now(timezone.utc)
-        range_start = now - timedelta(seconds=time_range.interval)
         bucket_count = time_range.target_points
         bucket_duration = time_range.interval / bucket_count
 
