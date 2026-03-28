@@ -46,6 +46,7 @@ class Api:
         self.history_service = history_service
         self.notification_service = notification_service
         self._quit_callback: Optional[callable] = None
+        self._on_exit_widget_callback: Optional[callable] = None
 
         self.app = Bottle()
         self._setup_routes()
@@ -57,6 +58,9 @@ class Api:
 
     def set_quit_callback(self, callback):
         self._quit_callback = callback
+
+    def set_exit_widget_callback(self, callback):
+        self._on_exit_widget_callback = callback
 
     def _json_response(self, data):
         response.content_type = 'application/json'
@@ -156,6 +160,20 @@ class Api:
             return self._json_response({
                 'mode': 'widget' if self._widget_mode else 'popup',
             })
+
+        @app.post('/api/start-drag')
+        def start_drag():
+            """Initiate native window drag via Win32."""
+            threading.Thread(target=self._start_native_drag, daemon=True).start()
+            return self._json_response({'ok': True})
+
+        @app.post('/api/exit-widget')
+        def exit_widget():
+            """Exit widget mode and hide window."""
+            if self._on_exit_widget_callback:
+                self._on_exit_widget_callback()
+            self.hide_browser()
+            return self._json_response({'ok': True})
 
     # ── Data serialization ──
 
@@ -427,6 +445,24 @@ class Api:
                 self._position_bottom_right()
             except Exception:
                 pass
+
+    def _start_native_drag(self):
+        """Trigger native Win32 window drag (title bar drag)."""
+        try:
+            import ctypes
+            import ctypes.wintypes
+            user32 = ctypes.windll.user32
+            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+            user32.FindWindowW.restype = ctypes.wintypes.HWND
+            hwnd = user32.FindWindowW(None, 'Claude Usage')
+            if not hwnd:
+                return
+            WM_NCLBUTTONDOWN = 0x00A1
+            HTCAPTION = 2
+            user32.ReleaseCapture()
+            user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
+        except Exception:
+            pass
 
     def _set_topmost(self, topmost: bool):
         """Set or clear HWND_TOPMOST on the webview window."""

@@ -32,6 +32,7 @@ class ClaudeUsageBarModernApp:
 
         self.api = Api(self.service, self.history_service, self.notification_service)
         self.api.set_quit_callback(self._on_quit)
+        self.api.set_exit_widget_callback(self._on_exit_widget)
 
         self.tray_icon: pystray.Icon | None = None
         self._running = True
@@ -153,6 +154,13 @@ class ClaudeUsageBarModernApp:
                 self.tray_icon.stop()
             except Exception:
                 pass
+
+    def _on_exit_widget(self):
+        """Called when close button is pressed in widget mode."""
+        self._widget_mode = False
+        self._save_widget_mode(False)
+        self.api._widget_mode = False
+        self.api._set_topmost(False)
 
     def _on_toggle_widget(self, icon=None, item=None):
         self._widget_mode = not self._widget_mode

@@ -328,7 +328,12 @@ async function quit() {
 }
 
 function closeWindow() {
-  window.close();
+  if (appMode === 'widget') {
+    // Exit widget mode and hide
+    fetch('/api/exit-widget', { method: 'POST' }).catch(() => {});
+  } else {
+    window.close();
+  }
 }
 
 // ── Startup toggle ──
@@ -424,7 +429,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else if (appMode === 'widget') {
     // Widget mode: show title bar (drag handle), no auto-hide
     const titleBar = document.getElementById('main-title-bar');
-    if (titleBar) titleBar.style.display = '';
+    if (titleBar) {
+      titleBar.style.display = '';
+      // Enable native Win32 drag on title bar mousedown
+      titleBar.addEventListener('mousedown', (e) => {
+        // Don't drag if clicking the close button
+        if (e.target.closest('.close-btn')) return;
+        fetch('/api/start-drag', { method: 'POST' }).catch(() => {});
+      });
+    }
   }
 
   initChart();
