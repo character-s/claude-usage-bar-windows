@@ -296,7 +296,7 @@ class Api:
             )
             if enabled:
                 exe_path = sys.executable
-                winreg.SetValueEx(key, "ClaudeUsageBar", 0, winreg.REG_SZ, f'"{exe_path}"')
+                winreg.SetValueEx(key, "ClaudeUsageBar", 0, winreg.REG_SZ, f'"{exe_path}" --silent')
             else:
                 try:
                     winreg.DeleteValue(key, "ClaudeUsageBar")
@@ -326,7 +326,7 @@ class Api:
         except Exception:
             return 1920, 1040
 
-    def run_webview_main(self):
+    def run_webview_main(self, hidden: bool = False):
         """Create and run pywebview on the MAIN thread. Blocks until shutdown."""
         work_w, work_h = self._get_work_area()
         win_w, win_h = 420, 560
@@ -397,6 +397,10 @@ class Api:
                 if self._widget_mode:
                     HWND_TOPMOST = -1
                     user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0002 | 0x0001)
+
+                # Silent mode: hide window immediately after positioning
+                if hidden:
+                    self.hide_browser()
             except Exception:
                 pass
 

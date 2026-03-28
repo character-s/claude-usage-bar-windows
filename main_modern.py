@@ -37,7 +37,7 @@ class ClaudeUsageBarModernApp:
         self.tray_icon: pystray.Icon | None = None
         self._running = True
 
-    def run(self):
+    def run(self, silent: bool = False):
         self.history_service.load_history()
 
         if self.service.is_authenticated:
@@ -45,8 +45,8 @@ class ClaudeUsageBarModernApp:
 
         self.service.on_update = self._on_usage_update
 
-        # Apply saved widget mode
-        if self._widget_mode:
+        # Apply saved widget mode (but not if silent)
+        if self._widget_mode and not silent:
             self.api._widget_mode = True
 
         # Start Bottle server
@@ -57,7 +57,7 @@ class ClaudeUsageBarModernApp:
         threading.Thread(target=self._run_tray, daemon=True).start()
 
         # Run pywebview on MAIN thread (blocks until shutdown)
-        self.api.run_webview_main()
+        self.api.run_webview_main(hidden=silent)
 
         # Cleanup
         self.history_service.flush_to_disk()
@@ -234,8 +234,9 @@ class ClaudeUsageBarModernApp:
 
 
 def main():
+    silent = '--silent' in sys.argv
     app = ClaudeUsageBarModernApp()
-    app.run()
+    app.run(silent=silent)
 
 
 if __name__ == "__main__":
