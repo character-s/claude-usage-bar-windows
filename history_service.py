@@ -43,8 +43,10 @@ class HistoryService:
                 pass
             self.data_points = []
 
-    def record_data_point(self, pct_5h: float, pct_7d: float):
-        point = UsageDataPoint(pct_5h=pct_5h, pct_7d=pct_7d)
+    def record_data_point(self, pct_5h: float, pct_7d: float,
+                          codex_primary: float = 0.0, codex_secondary: float = 0.0):
+        point = UsageDataPoint(pct_5h=pct_5h, pct_7d=pct_7d,
+                               codex_primary=codex_primary, codex_secondary=codex_secondary)
         with self._lock:
             self.data_points.append(point)
             self._dirty = True
@@ -100,12 +102,16 @@ class HistoryService:
             # Use max to preserve peaks (not average which hides spikes)
             max_5h = max(p.pct_5h for p in bucket)
             max_7d = max(p.pct_7d for p in bucket)
+            max_cp = max(p.codex_primary for p in bucket)
+            max_cs = max(p.codex_secondary for p in bucket)
             # Use timestamp of the peak point
             peak = max(bucket, key=lambda p: p.pct_5h + p.pct_7d)
             result.append(UsageDataPoint(
                 timestamp=peak.timestamp,
                 pct_5h=max_5h,
                 pct_7d=max_7d,
+                codex_primary=max_cp,
+                codex_secondary=max_cs,
             ))
         return result
 

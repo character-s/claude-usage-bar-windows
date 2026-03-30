@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from usage_service import UsageService
     from history_service import HistoryService
     from notification_service import NotificationService
+    from codex_service import CodexService
 
 
 def _web_dir() -> str:
@@ -41,10 +42,12 @@ class Api:
         service: UsageService,
         history_service: HistoryService,
         notification_service: NotificationService,
+        codex_service: Optional[CodexService] = None,
     ):
         self.service = service
         self.history_service = history_service
         self.notification_service = notification_service
+        self.codex_service: Optional[CodexService] = codex_service
         self._quit_callback: Optional[callable] = None
         self._on_exit_widget_callback: Optional[callable] = None
 
@@ -55,6 +58,7 @@ class Api:
         self._webview_window: Optional[webview.Window] = None
         self._webview_visible = True
         self._widget_mode = False
+        self._dpi_scale: float = 1.0  # physical / logical ratio, set after first show
 
     def set_quit_callback(self, callback):
         self._quit_callback = callback
@@ -177,16 +181,59 @@ class Api:
             """Exit widget mode, switch to popup, and hide window."""
             if self._on_exit_widget_callback:
                 self._on_exit_widget_callback()
-            # Switch back to popup mode URL before hiding
-            if self._webview_window:
-                try:
-                    self._webview_window.load_url(
-                        f'http://127.0.0.1:{self.port}?mode=popup'
-                    )
-                except Exception:
-                    pass
-            self._position_bottom_right()
             self.hide_browser()
+            self._position_bottom_right()
+            return self._json_response({'ok': True})
+
+        # -- Codex endpoints --
+
+        @app.post('/api/codex/sign-in')
+        def codex_sign_in():
+            if self.codex_service:
+                self.codex_service.start_login()
+            return self._json_response({'ok': True})
+
+        @app.post('/api/codex/submit-token')
+        def codex_submit_token():
+            data = request.json or {}
+            token = data.get('token', '')
+            if self.codex_service:
+                success = self.codex_service.submit_token(token)
+                return self._json_response({
+                    'success': success,
+                    'error': self.codex_service.last_error if not success else None,
+                })
+            return self._json_response({'success': False, 'error': 'Codex service not available'})
+
+        @app.post('/api/codex/sign-out')
+        def codex_sign_out():
+            if self.codex_service:
+                self.codex_service.sign_out()
+            return self._json_response({'ok': True})
+
+        @app.post('/api/settings/primary-provider')
+        def set_primary_provider():
+            data = request.json or {}
+            provider = data.get('provider', 'claude')
+            if provider in ('claude', 'codex'):
+                self._save_primary_provider(provider)
+            return self._json_response({'ok': True})
+
+        @app.post('/api/settings/dual-mode')
+        def set_dual_mode():
+            data = request.json or {}
+            enabled = bool(data.get('enabled', False))
+            self._save_dual_mode(enabled)
+            return self._json_response({'ok': True})
+
+        @app.post('/api/resize')
+        def resize_to_content():
+            data = request.json or {}
+            height = int(data.get('height', 0))
+            if height > 0:
+                # Clamp to reasonable range
+                height = max(300, min(height, 900))
+                self._resize_window(height)
             return self._json_response({'ok': True})
 
         # Static file route MUST be last (catch-all)
@@ -200,6 +247,8 @@ class Api:
         s = self.service
         usage = s.usage
         result = {
+            'primary_provider': self._load_primary_provider(),
+            'dual_mode': self._load_dual_mode(),
             'is_authenticated': s.is_authenticated,
             'is_awaiting_code': s.is_awaiting_code,
             'last_error': s.last_error,
@@ -217,6 +266,17 @@ class Api:
             'extra_util': None,
             'extra_used_str': '',
             'extra_limit_str': '',
+            # Codex fields
+            'codex_authenticated': False,
+            'codex_awaiting_token': False,
+            'codex_last_error': None,
+            'codex_last_updated': None,
+            'codex_primary_pct': None,
+            'codex_primary_reset': None,
+            'codex_primary_label': '',
+            'codex_secondary_pct': None,
+            'codex_secondary_reset': None,
+            'codex_secondary_label': '',
         }
         if usage:
             if usage.five_hour:
@@ -243,6 +303,26 @@ class Api:
                     ExtraUsage.format_usd(usage.extra_usage.monthly_limit_amount)
                     if usage.extra_usage.monthly_limit_amount is not None else ''
                 )
+        # Codex data
+        cs = self.codex_service
+        if cs:
+            result['codex_authenticated'] = cs.is_authenticated
+            result['codex_awaiting_token'] = cs.is_awaiting_token
+            result['codex_last_error'] = cs.last_error
+            result['codex_last_updated'] = cs.last_updated.isoformat() if cs.last_updated else None
+            if cs.usage:
+                pw = cs.usage.primary_window
+                if pw:
+                    result['codex_primary_pct'] = pw.used_percent
+                    result['codex_primary_label'] = pw.window_label
+                    if pw.reset_at_date:
+                        result['codex_primary_reset'] = pw.reset_at_date.isoformat()
+                sw = cs.usage.secondary_window
+                if sw:
+                    result['codex_secondary_pct'] = sw.used_percent
+                    result['codex_secondary_label'] = sw.window_label
+                    if sw.reset_at_date:
+                        result['codex_secondary_reset'] = sw.reset_at_date.isoformat()
         return result
 
     def _get_history(self, range_label: str) -> list:
@@ -253,7 +333,11 @@ class Api:
             return []
         points = self.history_service.downsampled_points(tr)
         return [
-            {'timestamp': p.timestamp.isoformat(), 'pct_5h': p.pct_5h, 'pct_7d': p.pct_7d}
+            {
+                'timestamp': p.timestamp.isoformat(),
+                'pct_5h': p.pct_5h, 'pct_7d': p.pct_7d,
+                'codex_primary': p.codex_primary, 'codex_secondary': p.codex_secondary,
+            }
             for p in points
         ]
 
@@ -265,6 +349,9 @@ class Api:
             'threshold_7d': self.notification_service.threshold_7d,
             'threshold_extra': self.notification_service.threshold_extra,
             'account_email': self.service.account_email,
+            'primary_provider': self._load_primary_provider(),
+            'dual_mode': self._load_dual_mode(),
+            'codex_authenticated': self.codex_service.is_authenticated if self.codex_service else False,
         }
 
     # ── Startup registry ──
@@ -330,7 +417,7 @@ class Api:
     def run_webview_main(self, hidden: bool = False):
         """Create and run pywebview on the MAIN thread. Blocks until shutdown."""
         work_w, work_h = self._get_work_area()
-        win_w, win_h = 420, 560
+        win_w, win_h = 405, 600
 
         # Physical pixel position for Win32 SetWindowPos
         phys_x = work_w - win_w
@@ -361,6 +448,19 @@ class Api:
             """Position window after content loads, then show."""
             import time
             time.sleep(0.3)
+            # Capture DPI scale from initial physical vs logical size
+            if self._dpi_scale == 1.0:
+                try:
+                    import ctypes, ctypes.wintypes
+                    hwnd = self._get_hwnd()
+                    if hwnd:
+                        wr = ctypes.wintypes.RECT()
+                        ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(wr))
+                        phys_h = wr.bottom - wr.top
+                        if phys_h > 0 and win_h > 0:
+                            self._dpi_scale = phys_h / win_h
+                except Exception:
+                    pass
             self._position_bottom_right()
 
             if self._widget_mode:
@@ -369,6 +469,8 @@ class Api:
             if not hidden:
                 self._webview_window.show()
                 self._webview_visible = True
+                time.sleep(0.1)
+                self._position_bottom_right()
 
         self._webview_window.events.loaded += _on_loaded
 
@@ -385,6 +487,15 @@ class Api:
     def show_browser(self):
         if self._webview_window:
             try:
+                # Ensure correct mode URL
+                mode = 'widget' if self._widget_mode else 'popup'
+                expected = f'http://127.0.0.1:{self.port}?mode={mode}'
+                try:
+                    current = self._webview_window.get_current_url() or ''
+                except Exception:
+                    current = ''
+                if f'mode={mode}' not in current:
+                    self._webview_window.load_url(expected)
                 self._webview_window.show()
                 self._webview_visible = True
                 if not self._widget_mode:
@@ -545,3 +656,84 @@ class Api:
             except Exception:
                 pass
             self._webview_window = None
+
+    # ── Primary provider settings ──
+
+    @staticmethod
+    def _load_primary_provider() -> str:
+        settings_file = Path.home() / ".config" / "claude-usage-bar" / "settings.json"
+        if settings_file.exists():
+            try:
+                data = json.loads(settings_file.read_text(encoding="utf-8"))
+                p = data.get("primary_provider", "claude")
+                if p in ("claude", "codex"):
+                    return p
+            except Exception:
+                pass
+        return "claude"
+
+    @staticmethod
+    def _save_primary_provider(provider: str):
+        settings_file = Path.home() / ".config" / "claude-usage-bar" / "settings.json"
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        settings = {}
+        if settings_file.exists():
+            try:
+                settings = json.loads(settings_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        settings["primary_provider"] = provider
+        settings_file.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _load_dual_mode() -> bool:
+        settings_file = Path.home() / ".config" / "claude-usage-bar" / "settings.json"
+        if settings_file.exists():
+            try:
+                data = json.loads(settings_file.read_text(encoding="utf-8"))
+                return bool(data.get("dual_mode", False))
+            except Exception:
+                pass
+        return False
+
+    @staticmethod
+    def _save_dual_mode(enabled: bool):
+        settings_file = Path.home() / ".config" / "claude-usage-bar" / "settings.json"
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        settings = {}
+        if settings_file.exists():
+            try:
+                settings = json.loads(settings_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        settings["dual_mode"] = enabled
+        settings_file.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    def _resize_window(self, new_height: int):
+        """Resize the webview window height only, preserving current width.
+
+        new_height is in logical (CSS) pixels. We query DPI directly from
+        the window handle to convert to physical pixels for SetWindowPos.
+        """
+        try:
+            import ctypes
+            import ctypes.wintypes
+            hwnd = self._get_hwnd()
+            if not hwnd:
+                return
+            wr = ctypes.wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(wr))
+            cur_w = wr.right - wr.left
+            try:
+                dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+                scale = dpi / 96.0
+            except Exception:
+                scale = self._dpi_scale
+            phys_h = int(new_height * scale)
+            SWP_NOMOVE = 0x0002
+            SWP_NOZORDER = 0x0004
+            ctypes.windll.user32.SetWindowPos(hwnd, None, 0, 0, cur_w, phys_h, SWP_NOMOVE | SWP_NOZORDER)
+            if not self._widget_mode:
+                self._position_bottom_right()
+        except Exception:
+            pass

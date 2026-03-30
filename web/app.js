@@ -5,6 +5,8 @@ let currentRange = '6h';
 let countdownTimer = null;
 let cachedUsage = null;
 let pollTimer = null;
+let needsResize = false;
+let prevCodexHasData = false;
 
 // Determine mode from URL params
 const urlParams = new URLSearchParams(window.location.search);
@@ -85,7 +87,8 @@ async function refreshData() {
   const codeEntry = document.getElementById('code-entry');
   const errorMsg = document.getElementById('error-msg');
 
-  if (!usage.is_authenticated) {
+  // If neither provider is authenticated, show sign-in
+  if (!usage.is_authenticated && !usage.codex_authenticated) {
     signinEl.style.display = '';
     usageEl.style.display = 'none';
     codeEntry.style.display = usage.is_awaiting_code ? '' : 'none';
@@ -96,6 +99,137 @@ async function refreshData() {
   signinEl.style.display = 'none';
   usageEl.style.display = '';
 
+  const primary = usage.primary_provider || 'claude';
+  const dualMode = usage.dual_mode;
+  const claudeAuth = usage.is_authenticated;
+  const codexAuth = usage.codex_authenticated;
+
+  // Primary section
+  const claudePrimary = document.getElementById('claude-primary');
+  const codexPrimary = document.getElementById('codex-primary');
+  const chartSection = document.getElementById('chart-section');
+  const primaryLabel = document.getElementById('primary-label');
+
+  if (dualMode) {
+    // Dual mode: show provider labels when both available
+    const bothAvailable = claudeAuth && codexAuth;
+    primaryLabel.style.display = bothAvailable ? '' : 'none';
+    primaryLabel.textContent = primary === 'claude' ? 'Claude' : 'Codex';
+
+    if (primary === 'claude' && claudeAuth) {
+      claudePrimary.style.display = '';
+      codexPrimary.style.display = 'none';
+      updateClaudeBuckets(usage);
+    } else if (primary === 'codex' && codexAuth) {
+      claudePrimary.style.display = 'none';
+      codexPrimary.style.display = '';
+      updateCodexBuckets(usage, false);
+    } else if (claudeAuth) {
+      claudePrimary.style.display = '';
+      codexPrimary.style.display = 'none';
+      updateClaudeBuckets(usage);
+    } else if (codexAuth) {
+      claudePrimary.style.display = 'none';
+      codexPrimary.style.display = '';
+      updateCodexBuckets(usage, false);
+    }
+  } else {
+    // Single mode: show only the primary provider (or whichever is authenticated)
+    primaryLabel.style.display = 'none';
+    if (primary === 'codex' && codexAuth) {
+      claudePrimary.style.display = 'none';
+      codexPrimary.style.display = '';
+      updateCodexBuckets(usage, false);
+    } else if (claudeAuth) {
+      claudePrimary.style.display = '';
+      codexPrimary.style.display = 'none';
+      updateClaudeBuckets(usage);
+    } else if (codexAuth) {
+      claudePrimary.style.display = 'none';
+      codexPrimary.style.display = '';
+      updateCodexBuckets(usage, false);
+    }
+  }
+
+  // Chart: always show when Claude is authenticated (chart data is always Claude)
+  chartSection.style.display = claudeAuth ? '' : 'none';
+
+  // Secondary section (only in dual mode)
+  const secondarySection = document.getElementById('secondary-section');
+  const secondaryLabel = document.getElementById('secondary-label');
+  const claudeSecondary = document.getElementById('claude-secondary');
+  const codexSecondaryEl = document.getElementById('codex-secondary-section');
+  const secondarySignin = document.getElementById('secondary-signin');
+
+  if (dualMode) {
+    const bothAvailable = claudeAuth && codexAuth;
+    if (bothAvailable) {
+      secondarySection.style.display = '';
+      secondarySignin.style.display = 'none';
+      if (primary === 'claude') {
+        secondaryLabel.textContent = 'Codex';
+        claudeSecondary.style.display = 'none';
+        codexSecondaryEl.style.display = '';
+        updateCodexBuckets(usage, true);
+      } else {
+        secondaryLabel.textContent = 'Claude';
+        claudeSecondary.style.display = '';
+        codexSecondaryEl.style.display = 'none';
+        updateClaudeCompact(usage);
+      }
+    } else if (claudeAuth && !codexAuth) {
+      secondarySection.style.display = '';
+      secondaryLabel.textContent = 'Codex';
+      claudeSecondary.style.display = 'none';
+      codexSecondaryEl.style.display = 'none';
+      secondarySignin.style.display = '';
+      const btn = document.getElementById('secondary-signin-btn');
+      btn.textContent = 'Sign in with ChatGPT';
+      btn.onclick = codexSignIn;
+    } else if (codexAuth && !claudeAuth) {
+      secondarySection.style.display = '';
+      secondaryLabel.textContent = 'Claude';
+      claudeSecondary.style.display = 'none';
+      codexSecondaryEl.style.display = 'none';
+      secondarySignin.style.display = '';
+      const btn = document.getElementById('secondary-signin-btn');
+      btn.textContent = 'Sign in with Claude';
+      btn.onclick = signIn;
+    } else {
+      secondarySection.style.display = 'none';
+    }
+  } else {
+    secondarySection.style.display = 'none';
+  }
+
+  // Updated time (use primary provider's timestamp)
+  const updatedIso = primary === 'codex' && codexAuth
+    ? usage.codex_last_updated
+    : usage.last_updated;
+  document.getElementById('updated-text').textContent = formatUpdatedTime(updatedIso);
+
+  // Account email
+  if (usage.account_email) {
+    document.getElementById('account-email').textContent = usage.account_email;
+  }
+
+  // Error
+  errorMsg.textContent = usage.last_error || '';
+
+  // Refresh chart and legend
+  if (chartSection.style.display !== 'none') {
+    await refreshChart();
+  }
+
+  // Resize when codex data availability changes (e.g. first fetch)
+  const codexHasData = usage.codex_primary_pct !== null;
+  if (codexHasData !== prevCodexHasData) {
+    prevCodexHasData = codexHasData;
+    requestResize();
+  }
+}
+
+function updateClaudeBuckets(usage) {
   // 5-Hour
   updateBucket('5h', usage.pct_5h, usage.reset_5h, usage.util_5h);
   // 7-Day
@@ -144,20 +278,32 @@ async function refreshData() {
   } else {
     extraEl.style.display = 'none';
   }
+}
 
-  // Updated time
-  document.getElementById('updated-text').textContent = formatUpdatedTime(usage.last_updated);
+function updateCodexBuckets(usage, compact) {
+  const prefix = compact ? 'codex-compact' : 'codex';
 
-  // Account email
-  if (usage.account_email) {
-    document.getElementById('account-email').textContent = usage.account_email;
-  }
+  // Primary window
+  const pPct = usage.codex_primary_pct;
+  const pLabel = usage.codex_primary_label || '5h';
+  const pReset = usage.codex_primary_reset;
+  document.getElementById(`${prefix}-primary-label`).textContent = pLabel + ' Window';
+  // Use same updateBucket as Claude for consistent rendering
+  const pNorm = pPct !== null && pPct !== undefined ? pPct / 100 : 0;
+  updateBucket(`${prefix}-primary`, pNorm, pReset, pPct);
 
-  // Error
-  errorMsg.textContent = usage.last_error || '';
+  // Secondary window
+  const sPct = usage.codex_secondary_pct;
+  const sLabel = usage.codex_secondary_label || '7d';
+  const sReset = usage.codex_secondary_reset;
+  document.getElementById(`${prefix}-secondary-label`).textContent = sLabel + ' Window';
+  const sNorm = sPct !== null && sPct !== undefined ? sPct / 100 : 0;
+  updateBucket(`${prefix}-secondary`, sNorm, sReset, sPct);
+}
 
-  // Refresh chart
-  await refreshChart();
+function updateClaudeCompact(usage) {
+  updateBucket('5h-sec', usage.pct_5h, usage.reset_5h, usage.util_5h);
+  updateBucket('7d-sec', usage.pct_7d, usage.reset_7d, usage.util_7d);
 }
 
 function updateBucket(key, pct, resetIso, util) {
@@ -176,6 +322,21 @@ function updateBucket(key, pct, resetIso, util) {
 
   resetEl.textContent = formatRelativeTime(resetIso);
   resetEl.style.color = pct > 0 ? pctColor(pct) : '#606078';
+}
+
+
+// ── Auto-resize ──
+
+function requestResize() {
+  // Only resize based on main view, not settings
+  if (document.getElementById('settings-view').classList.contains('active')) return;
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      const el = document.getElementById('main-view');
+      const height = el.scrollHeight + 2;
+      apiPost('/api/resize', { height });
+    }, 50);
+  });
 }
 
 // ── Chart ──
@@ -264,9 +425,17 @@ async function refreshChart() {
     return d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
   });
 
+  const primary = cachedUsage ? cachedUsage.primary_provider : 'claude';
+  const isCodex = primary === 'codex';
+
   usageChart.data.labels = labels;
-  usageChart.data.datasets[0].data = history.map(p => p.pct_5h * 100);
-  usageChart.data.datasets[1].data = history.map(p => p.pct_7d * 100);
+  if (isCodex) {
+    usageChart.data.datasets[0].data = history.map(p => (p.codex_primary || 0) * 100);
+    usageChart.data.datasets[1].data = history.map(p => (p.codex_secondary || 0) * 100);
+  } else {
+    usageChart.data.datasets[0].data = history.map(p => p.pct_5h * 100);
+    usageChart.data.datasets[1].data = history.map(p => p.pct_7d * 100);
+  }
   usageChart.update('none');
 }
 
@@ -290,6 +459,18 @@ document.getElementById('poll-selector').addEventListener('click', (e) => {
   btn.classList.add('active');
   const minutes = parseInt(btn.dataset.minutes);
   apiPost('/api/settings/polling', { minutes });
+});
+
+// ── Provider selector ──
+
+document.getElementById('provider-selector').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.provider-btn');
+  if (!btn) return;
+  document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const provider = btn.dataset.provider;
+  await apiPost('/api/settings/primary-provider', { provider });
+  needsResize = true;
 });
 
 // ── Actions ──
@@ -319,6 +500,31 @@ async function signOut() {
   await refreshData();
 }
 
+async function codexSignIn() {
+  await apiPost('/api/codex/sign-in');
+}
+
+async function submitCodexToken() {
+  const input = document.getElementById('codex-token-input');
+  const token = input.value.trim();
+  if (!token) return;
+  const result = await apiPost('/api/codex/submit-token', { token });
+  if (result && result.success) {
+    input.value = '';
+    await refreshData();
+    loadSettings();
+  } else {
+    document.getElementById('codex-error-msg').textContent =
+      (result && result.error) || 'Invalid token';
+  }
+}
+
+async function codexSignOut() {
+  await apiPost('/api/codex/sign-out');
+  await refreshData();
+  loadSettings();
+}
+
 async function refresh() {
   await apiPost('/api/refresh');
   setTimeout(refreshData, 1500);
@@ -344,6 +550,15 @@ async function toggleStartup(checked) {
   document.getElementById('settings-startup-toggle').checked = checked;
 }
 
+async function toggleDualMode(checked) {
+  await apiPost('/api/settings/dual-mode', { enabled: checked });
+  document.getElementById('settings-dual-toggle').checked = checked;
+  const primarySetting = document.getElementById('primary-display-setting');
+  primarySetting.style.display = checked ? '' : 'none';
+  await refreshData();
+  needsResize = true;
+}
+
 // ── Settings view ──
 
 function showSettings() {
@@ -352,9 +567,14 @@ function showSettings() {
   loadSettings();
 }
 
-function hideSettings() {
+async function hideSettings() {
   document.getElementById('main-view').classList.remove('hidden');
   document.getElementById('settings-view').classList.remove('active');
+  await refreshData();
+  if (needsResize) {
+    needsResize = false;
+    requestResize();
+  }
 }
 
 async function loadSettings() {
@@ -373,6 +593,27 @@ async function loadSettings() {
 
   if (settings.account_email) {
     document.getElementById('account-email').textContent = settings.account_email;
+  }
+
+  // Dual mode toggle
+  document.getElementById('settings-dual-toggle').checked = settings.dual_mode;
+  const primarySetting = document.getElementById('primary-display-setting');
+  primarySetting.style.display = settings.dual_mode ? '' : 'none';
+
+  // Provider selector
+  document.querySelectorAll('.provider-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.provider === settings.primary_provider);
+  });
+
+  // Codex account status
+  const codexSignedIn = document.getElementById('codex-signed-in');
+  const codexSignedOut = document.getElementById('codex-signed-out');
+  if (settings.codex_authenticated) {
+    codexSignedIn.style.display = '';
+    codexSignedOut.style.display = 'none';
+  } else {
+    codexSignedIn.style.display = 'none';
+    codexSignedOut.style.display = '';
   }
 }
 
@@ -400,10 +641,37 @@ function updateSlider(key, value) {
 
 function updateCountdowns() {
   if (!cachedUsage) return;
-  if (cachedUsage.reset_5h)
-    document.getElementById('reset-5h').textContent = formatRelativeTime(cachedUsage.reset_5h);
-  if (cachedUsage.reset_7d)
-    document.getElementById('reset-7d').textContent = formatRelativeTime(cachedUsage.reset_7d);
+  // Claude primary
+  if (cachedUsage.reset_5h) {
+    const el = document.getElementById('reset-5h');
+    if (el) el.textContent = formatRelativeTime(cachedUsage.reset_5h);
+  }
+  if (cachedUsage.reset_7d) {
+    const el = document.getElementById('reset-7d');
+    if (el) el.textContent = formatRelativeTime(cachedUsage.reset_7d);
+  }
+  // Claude compact (secondary)
+  if (cachedUsage.reset_5h) {
+    const el = document.getElementById('reset-5h-sec');
+    if (el) el.textContent = formatRelativeTime(cachedUsage.reset_5h);
+  }
+  if (cachedUsage.reset_7d) {
+    const el = document.getElementById('reset-7d-sec');
+    if (el) el.textContent = formatRelativeTime(cachedUsage.reset_7d);
+  }
+  // Codex primary + compact
+  if (cachedUsage.codex_primary_reset) {
+    const el = document.getElementById('reset-codex-primary');
+    if (el) el.textContent = formatRelativeTime(cachedUsage.codex_primary_reset);
+    const elC = document.getElementById('reset-codex-compact-primary');
+    if (elC) elC.textContent = formatRelativeTime(cachedUsage.codex_primary_reset);
+  }
+  if (cachedUsage.codex_secondary_reset) {
+    const el = document.getElementById('reset-codex-secondary');
+    if (el) el.textContent = formatRelativeTime(cachedUsage.codex_secondary_reset);
+    const elC = document.getElementById('reset-codex-compact-secondary');
+    if (elC) elC.textContent = formatRelativeTime(cachedUsage.codex_secondary_reset);
+  }
   document.getElementById('updated-text').textContent =
     formatUpdatedTime(cachedUsage.last_updated);
 }
@@ -457,6 +725,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initChart();
   await refreshData();
+  requestResize();
   countdownTimer = setInterval(updateCountdowns, 1000);
   // Poll for updates every 15 seconds
   pollTimer = setInterval(refreshData, 15000);

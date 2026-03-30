@@ -35,66 +35,99 @@
 
     <!-- Usage (authenticated) -->
     <div id="usage-section" style="display:none">
-      <!-- 5-Hour Window -->
-      <div class="bucket">
-        <div class="bucket-header">
-          <span class="bucket-label">5-Hour Window</span>
-          <span class="bucket-pct" id="pct-5h">--%</span>
+
+      <!-- Primary provider section -->
+      <div id="primary-section">
+        <div id="primary-label" class="provider-label" style="display:none"></div>
+
+        <!-- Claude primary -->
+        <div id="claude-primary">
+          <!-- 5-Hour Window -->
+          <div class="bucket">
+            <div class="bucket-header">
+              <span class="bucket-label">5-Hour Window</span>
+              <span class="bucket-pct" id="pct-5h">--%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="bar-5h" style="width:0%"></div>
+            </div>
+            <div class="reset-time" id="reset-5h"></div>
+          </div>
+
+          <!-- 7-Day Window -->
+          <div class="bucket">
+            <div class="bucket-header">
+              <span class="bucket-label">7-Day Window</span>
+              <span class="bucket-pct" id="pct-7d">--%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="bar-7d" style="width:0%"></div>
+            </div>
+            <div class="reset-time" id="reset-7d"></div>
+          </div>
+
+          <!-- Model Breakdown -->
+          <div id="model-breakdown" style="display:none">
+            <div class="bucket bucket-sub" id="bucket-opus" style="display:none">
+              <div class="bucket-header">
+                <span class="bucket-label">Opus</span>
+                <span class="bucket-pct" id="pct-opus">--%</span>
+              </div>
+              <div class="progress-bar" style="height:8px">
+                <div class="progress-fill" id="bar-opus" style="width:0%;height:100%"></div>
+              </div>
+            </div>
+            <div class="bucket bucket-sub" id="bucket-sonnet" style="display:none">
+              <div class="bucket-header">
+                <span class="bucket-label">Sonnet</span>
+                <span class="bucket-pct" id="pct-sonnet">--%</span>
+              </div>
+              <div class="progress-bar" style="height:8px">
+                <div class="progress-fill" id="bar-sonnet" style="width:0%;height:100%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Extra Usage -->
+          <div id="extra-section" class="extra-usage" style="display:none">
+            <div class="separator"></div>
+            <div class="extra-header">
+              <span class="extra-label">Extra Usage</span>
+              <span class="extra-amount" id="extra-amount"></span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="bar-extra" style="width:0%"></div>
+            </div>
+          </div>
         </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="bar-5h" style="width:0%"></div>
+
+        <!-- Codex primary -->
+        <div id="codex-primary" style="display:none">
+          <div class="bucket">
+            <div class="bucket-header">
+              <span class="bucket-label" id="codex-primary-label">Primary</span>
+              <span class="bucket-pct" id="pct-codex-primary">--%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="bar-codex-primary" style="width:0%"></div>
+            </div>
+            <div class="reset-time" id="reset-codex-primary"></div>
+          </div>
+          <div class="bucket">
+            <div class="bucket-header">
+              <span class="bucket-label" id="codex-secondary-label">Secondary</span>
+              <span class="bucket-pct" id="pct-codex-secondary">--%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="bar-codex-secondary" style="width:0%"></div>
+            </div>
+            <div class="reset-time" id="reset-codex-secondary"></div>
+          </div>
         </div>
-        <div class="reset-time" id="reset-5h"></div>
       </div>
 
-      <!-- 7-Day Window -->
-      <div class="bucket">
-        <div class="bucket-header">
-          <span class="bucket-label">7-Day Window</span>
-          <span class="bucket-pct" id="pct-7d">--%</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="bar-7d" style="width:0%"></div>
-        </div>
-        <div class="reset-time" id="reset-7d"></div>
-      </div>
-
-      <!-- Model Breakdown -->
-      <div id="model-breakdown" style="display:none">
-        <div class="bucket bucket-sub" id="bucket-opus" style="display:none">
-          <div class="bucket-header">
-            <span class="bucket-label">Opus</span>
-            <span class="bucket-pct" id="pct-opus">--%</span>
-          </div>
-          <div class="progress-bar" style="height:8px">
-            <div class="progress-fill" id="bar-opus" style="width:0%;height:100%"></div>
-          </div>
-        </div>
-        <div class="bucket bucket-sub" id="bucket-sonnet" style="display:none">
-          <div class="bucket-header">
-            <span class="bucket-label">Sonnet</span>
-            <span class="bucket-pct" id="pct-sonnet">--%</span>
-          </div>
-          <div class="progress-bar" style="height:8px">
-            <div class="progress-fill" id="bar-sonnet" style="width:0%;height:100%"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Extra Usage -->
-      <div id="extra-section" class="extra-usage" style="display:none">
-        <div class="separator"></div>
-        <div class="extra-header">
-          <span class="extra-label">Extra Usage</span>
-          <span class="extra-amount" id="extra-amount"></span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="bar-extra" style="width:0%"></div>
-        </div>
-      </div>
-
-      <!-- Chart -->
-      <div class="chart-section">
+      <!-- Chart (only for primary) -->
+      <div id="chart-section" class="chart-section">
         <div class="separator"></div>
         <div class="range-selector" id="range-selector">
           <button class="range-btn" data-range="1h">1h</button>
@@ -109,6 +142,65 @@
         <div class="chart-legend">
           <span><span class="dot" style="background:var(--blue)"></span> 5h</span>
           <span><span class="dot" style="background:var(--orange)"></span> 7d</span>
+        </div>
+      </div>
+
+      <!-- Secondary provider (compact) -->
+      <div id="secondary-section" style="display:none">
+        <div class="separator"></div>
+        <div id="secondary-label" class="provider-label secondary"></div>
+
+        <!-- Claude compact -->
+        <div id="claude-secondary" style="display:none">
+          <div class="bucket bucket-compact">
+            <div class="bucket-header">
+              <span class="bucket-label">5-Hour</span>
+              <span class="bucket-pct" id="pct-5h-sec">--%</span>
+            </div>
+            <div class="progress-bar" style="height:8px">
+              <div class="progress-fill" id="bar-5h-sec" style="width:0%;height:100%"></div>
+            </div>
+            <div class="reset-time" id="reset-5h-sec"></div>
+          </div>
+          <div class="bucket bucket-compact">
+            <div class="bucket-header">
+              <span class="bucket-label">7-Day</span>
+              <span class="bucket-pct" id="pct-7d-sec">--%</span>
+            </div>
+            <div class="progress-bar" style="height:8px">
+              <div class="progress-fill" id="bar-7d-sec" style="width:0%;height:100%"></div>
+            </div>
+            <div class="reset-time" id="reset-7d-sec"></div>
+          </div>
+        </div>
+
+        <!-- Codex compact -->
+        <div id="codex-secondary-section" style="display:none">
+          <div class="bucket bucket-compact">
+            <div class="bucket-header">
+              <span class="bucket-label" id="codex-compact-primary-label">Primary</span>
+              <span class="bucket-pct" id="pct-codex-compact-primary">--%</span>
+            </div>
+            <div class="progress-bar" style="height:8px">
+              <div class="progress-fill" id="bar-codex-compact-primary" style="width:0%;height:100%"></div>
+            </div>
+            <div class="reset-time" id="reset-codex-compact-primary"></div>
+          </div>
+          <div class="bucket bucket-compact">
+            <div class="bucket-header">
+              <span class="bucket-label" id="codex-compact-secondary-label">Secondary</span>
+              <span class="bucket-pct" id="pct-codex-compact-secondary">--%</span>
+            </div>
+            <div class="progress-bar" style="height:8px">
+              <div class="progress-fill" id="bar-codex-compact-secondary" style="width:0%;height:100%"></div>
+            </div>
+            <div class="reset-time" id="reset-codex-compact-secondary"></div>
+          </div>
+        </div>
+
+        <!-- Sign in prompt for secondary -->
+        <div id="secondary-signin" class="secondary-signin" style="display:none">
+          <button class="action-link" id="secondary-signin-btn"></button>
         </div>
       </div>
 
@@ -201,12 +293,63 @@
 
     <div class="separator"></div>
 
-    <!-- Account -->
+    <!-- Dual Mode -->
     <div class="settings-section">
-      <h3>Account</h3>
+      <h3>Display</h3>
+      <div class="toggle-row">
+        <label>Dual Provider</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="settings-dual-toggle"
+                 onchange="toggleDualMode(this.checked)">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div id="primary-display-setting" style="margin-top:10px;display:none">
+        <div class="slider-header">
+          <span class="slider-label">Primary Display</span>
+        </div>
+        <div class="provider-selector" id="provider-selector">
+          <button class="provider-btn active" data-provider="claude">Claude</button>
+          <button class="provider-btn" data-provider="codex">Codex</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <!-- Claude Account -->
+    <div class="settings-section">
+      <h3>Claude Account</h3>
       <div class="account-info">
         <span class="account-email" id="account-email">--</span>
         <button class="signout-btn" onclick="signOut()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <!-- Codex Account -->
+    <div class="settings-section">
+      <h3>Codex Account</h3>
+      <div id="codex-signed-in" style="display:none">
+        <div class="account-info">
+          <span class="account-email">Signed in</span>
+          <button class="signout-btn" onclick="codexSignOut()">Sign Out</button>
+        </div>
+      </div>
+      <div id="codex-signed-out">
+        <p class="codex-help-text">
+          1. Open <a href="#" onclick="codexSignIn();return false" class="codex-link">chatgpt.com/api/auth/session</a> in your browser<br>
+          2. Sign in if needed, then copy the entire page content<br>
+          3. Paste it below
+        </p>
+        <div class="code-entry" id="codex-token-entry">
+          <input type="text" id="codex-token-input" placeholder="Paste session JSON here..."
+                 onkeydown="if(event.key==='Enter')submitCodexToken()">
+          <button class="submit-btn" onclick="submitCodexToken()">Submit Token</button>
+        </div>
+        <div id="codex-error-msg" class="error-text"></div>
       </div>
     </div>
 
@@ -216,7 +359,7 @@
     <div class="settings-section">
       <div class="about-row">
         <span class="about-label">Claude Usage Bar</span>
-        <span class="about-version">v1.2.2</span>
+        <span class="about-version">v1.3.0</span>
       </div>
     </div>
   </div>

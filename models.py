@@ -110,6 +110,58 @@ class UsageResponse:
 
 
 # ---------------------------------------------------------------------------
+# Codex (ChatGPT) usage models
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CodexWindow:
+    used_percent: Optional[float] = None  # 0-100
+    limit_window_seconds: Optional[float] = None
+    reset_after_seconds: Optional[float] = None
+
+    @property
+    def reset_at_date(self) -> Optional[datetime]:
+        if self.reset_after_seconds is None:
+            return None
+        from datetime import timedelta
+        return datetime.now(timezone.utc) + timedelta(seconds=self.reset_after_seconds)
+
+    @property
+    def window_label(self) -> str:
+        if self.limit_window_seconds is None:
+            return ""
+        hours = self.limit_window_seconds / 3600
+        if hours <= 24:
+            return f"{int(hours)}h"
+        days = hours / 24
+        return f"{int(days)}d"
+
+    @staticmethod
+    def from_dict(d: Optional[dict]) -> Optional[CodexWindow]:
+        if d is None:
+            return None
+        return CodexWindow(
+            used_percent=d.get("used_percent"),
+            limit_window_seconds=d.get("limit_window_seconds"),
+            reset_after_seconds=d.get("reset_after_seconds"),
+        )
+
+
+@dataclass
+class CodexUsageResponse:
+    primary_window: Optional[CodexWindow] = None
+    secondary_window: Optional[CodexWindow] = None
+
+    @staticmethod
+    def from_dict(d: dict) -> CodexUsageResponse:
+        rl = d.get("rate_limit") or {}
+        return CodexUsageResponse(
+            primary_window=CodexWindow.from_dict(rl.get("primary_window")),
+            secondary_window=CodexWindow.from_dict(rl.get("secondary_window")),
+        )
+
+
+# ---------------------------------------------------------------------------
 # History models
 # ---------------------------------------------------------------------------
 
@@ -118,15 +170,21 @@ class UsageDataPoint:
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     pct_5h: float = 0.0
     pct_7d: float = 0.0
+    codex_primary: float = 0.0
+    codex_secondary: float = 0.0
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "timestamp": self.timestamp.isoformat(),
             "pct_5h": self.pct_5h,
             "pct_7d": self.pct_7d,
         }
+        if self.codex_primary > 0 or self.codex_secondary > 0:
+            d["codex_primary"] = self.codex_primary
+            d["codex_secondary"] = self.codex_secondary
+        return d
 
     @staticmethod
     def from_dict(d: dict) -> UsageDataPoint:
@@ -135,6 +193,8 @@ class UsageDataPoint:
             timestamp=datetime.fromisoformat(d["timestamp"]),
             pct_5h=d["pct_5h"],
             pct_7d=d["pct_7d"],
+            codex_primary=d.get("codex_primary", 0.0),
+            codex_secondary=d.get("codex_secondary", 0.0),
         )
 
 

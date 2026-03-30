@@ -15,6 +15,7 @@ import pystray
 from usage_service import UsageService
 from history_service import HistoryService
 from notification_service import NotificationService
+from codex_service import CodexService
 from tray_icon import render_icon, render_unauthenticated_icon
 from ui_modern import Api
 
@@ -26,11 +27,12 @@ class ClaudeUsageBarModernApp:
         self.service = UsageService()
         self.history_service = HistoryService()
         self.notification_service = NotificationService()
+        self.codex_service = CodexService()
 
         self.tray_display_mode = self._load_tray_mode()
         self._widget_mode = self._load_widget_mode()
 
-        self.api = Api(self.service, self.history_service, self.notification_service)
+        self.api = Api(self.service, self.history_service, self.notification_service, self.codex_service)
         self.api.set_quit_callback(self._on_quit)
         self.api.set_exit_widget_callback(self._on_exit_widget)
 
@@ -43,7 +45,11 @@ class ClaudeUsageBarModernApp:
         if self.service.is_authenticated:
             self.service.start_polling()
 
+        if self.codex_service.is_authenticated:
+            self.codex_service.start_polling()
+
         self.service.on_update = self._on_usage_update
+        self.codex_service.on_update = self._on_codex_update
 
         # Apply saved widget mode (but not if silent)
         if self._widget_mode and not silent:
@@ -62,6 +68,7 @@ class ClaudeUsageBarModernApp:
         # Cleanup
         self.history_service.flush_to_disk()
         self.service.stop_polling()
+        self.codex_service.stop_polling()
 
     def _run_tray(self):
         icon_image = self._current_icon()
@@ -106,9 +113,20 @@ class ClaudeUsageBarModernApp:
         self.tray_icon.run()
 
     def _current_icon(self):
+        primary = self.api._load_primary_provider()
+        if primary == 'codex' and self.codex_service.is_authenticated:
+            return render_icon(
+                self.codex_service.pct_primary, self.codex_service.pct_secondary,
+                show_mode=self.tray_display_mode,
+            )
         if self.service.is_authenticated:
             return render_icon(
                 self.service.pct_5h, self.service.pct_7d,
+                show_mode=self.tray_display_mode,
+            )
+        if self.codex_service.is_authenticated:
+            return render_icon(
+                self.codex_service.pct_primary, self.codex_service.pct_secondary,
                 show_mode=self.tray_display_mode,
             )
         return render_unauthenticated_icon()
@@ -116,10 +134,19 @@ class ClaudeUsageBarModernApp:
     def _on_usage_update(self):
         if self.service.usage:
             self.history_service.record_data_point(
-                self.service.pct_5h, self.service.pct_7d
+                self.service.pct_5h, self.service.pct_7d,
+                self.codex_service.pct_primary, self.codex_service.pct_secondary,
             )
             self.notification_service.check_and_notify(
                 self.service.pct_5h, self.service.pct_7d, self.service.pct_extra
+            )
+        self._update_icon()
+
+    def _on_codex_update(self):
+        if self.codex_service.usage:
+            self.history_service.record_data_point(
+                self.service.pct_5h, self.service.pct_7d,
+                self.codex_service.pct_primary, self.codex_service.pct_secondary,
             )
         self._update_icon()
 
@@ -148,6 +175,7 @@ class ClaudeUsageBarModernApp:
         self._running = False
         self.history_service.flush_to_disk()
         self.service.stop_polling()
+        self.codex_service.stop_polling()
         self.api.shutdown_browser()
         if self.tray_icon:
             try:
