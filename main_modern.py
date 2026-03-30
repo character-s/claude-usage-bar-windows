@@ -170,6 +170,8 @@ class ClaudeUsageBarModernApp:
 
     def _on_refresh(self, icon=None, item=None):
         threading.Thread(target=self.service.fetch_usage, daemon=True).start()
+        if self.codex_service.is_authenticated:
+            threading.Thread(target=self.codex_service.fetch_usage, daemon=True).start()
 
     def _on_quit(self, icon=None, item=None):
         self._running = False

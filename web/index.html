@@ -20,7 +20,7 @@
     <!-- Sign In -->
     <div id="signin-section" class="signin-section" style="display:none">
       <p class="signin-text">
-        Sign in with your Claude account to view your API usage.
+        Sign in to view your usage.
       </p>
       <button class="signin-btn" onclick="signIn()">Sign in with Claude</button>
 
@@ -31,6 +31,21 @@
       </div>
 
       <div id="error-msg" class="error-text"></div>
+
+      <div class="signin-divider"><span>or</span></div>
+
+      <button class="signin-btn signin-btn-secondary" onclick="toggleSigninCodex()">Sign in with ChatGPT Codex</button>
+      <div id="signin-codex-entry" class="code-entry" style="display:none">
+        <p class="codex-help-text" style="margin:0 0 8px 0;font-size:12px">
+          1. Open <a href="#" onclick="codexSignIn();return false" class="codex-link">chatgpt.com/api/auth/session</a><br>
+          2. Copy the entire page content<br>
+          3. Paste it below
+        </p>
+        <input type="text" id="signin-codex-token-input" placeholder="Paste session JSON here..."
+               onkeydown="if(event.key==='Enter')submitSigninCodexToken()">
+        <button class="submit-btn" onclick="submitSigninCodexToken()">Submit Token</button>
+        <div id="signin-codex-error-msg" class="error-text"></div>
+      </div>
     </div>
 
     <!-- Usage (authenticated) -->
@@ -359,7 +374,7 @@
     <div class="settings-section">
       <div class="about-row">
         <span class="about-label">Claude Usage Bar</span>
-        <span class="about-version">v1.3.0</span>
+        <span class="about-version">v1.3.1</span>
       </div>
     </div>
   </div>

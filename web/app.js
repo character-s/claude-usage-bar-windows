@@ -504,6 +504,25 @@ async function codexSignIn() {
   await apiPost('/api/codex/sign-in');
 }
 
+function toggleSigninCodex() {
+  const entry = document.getElementById('signin-codex-entry');
+  entry.style.display = entry.style.display === 'none' ? '' : 'none';
+}
+
+async function submitSigninCodexToken() {
+  const input = document.getElementById('signin-codex-token-input');
+  const token = input.value.trim();
+  if (!token) return;
+  const result = await apiPost('/api/codex/submit-token', { token });
+  if (result && result.success) {
+    input.value = '';
+    await refreshData();
+  } else {
+    document.getElementById('signin-codex-error-msg').textContent =
+      (result && result.error) || 'Invalid token';
+  }
+}
+
 async function submitCodexToken() {
   const input = document.getElementById('codex-token-input');
   const token = input.value.trim();

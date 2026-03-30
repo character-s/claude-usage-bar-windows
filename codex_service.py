@@ -151,8 +151,13 @@ class CodexService:
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=15,
             )
-            if resp.status_code in (401, 403):
-                self.last_error = "Invalid token -- please try again"
+            if resp.status_code != 200:
+                if resp.status_code in (401, 403):
+                    self.last_error = "Invalid token -- please try again"
+                elif resp.status_code == 429:
+                    self.last_error = "Rate limited -- please wait and try again"
+                else:
+                    self.last_error = f"Validation failed (HTTP {resp.status_code})"
                 return False
         except Exception as e:
             self.last_error = f"Validation failed: {e}"
@@ -190,6 +195,13 @@ class CodexService:
         self._notify_update()
 
     # -- Polling --
+
+    def update_polling_interval(self, minutes: int):
+        """Update the polling interval (called when user changes settings)."""
+        self._polling_minutes = minutes
+        self._current_interval = minutes * 60
+        if self.is_authenticated:
+            self._schedule_timer()
 
     def start_polling(self):
         if not self.is_authenticated:

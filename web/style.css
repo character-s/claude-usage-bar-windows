@@ -360,6 +360,30 @@ body {
 
 .signin-btn:hover { background: var(--accent-hover); }
 
+.signin-btn-secondary {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  padding: 10px 24px;
+}
+.signin-btn-secondary:hover { background: var(--bg-hover); }
+
+.signin-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.signin-divider::before,
+.signin-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.signin-divider span { padding: 0 12px; }
+
 .code-entry {
   margin-top: 20px;
 }

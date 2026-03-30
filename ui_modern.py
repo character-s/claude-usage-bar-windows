@@ -112,6 +112,8 @@ class Api:
         @app.post('/api/refresh')
         def do_refresh():
             threading.Thread(target=self.service.fetch_usage, daemon=True).start()
+            if self.codex_service and self.codex_service.is_authenticated:
+                threading.Thread(target=self.codex_service.fetch_usage, daemon=True).start()
             return self._json_response({'ok': True})
 
         @app.post('/api/quit')
@@ -126,6 +128,8 @@ class Api:
             minutes = data.get('minutes', 30)
             if minutes in self.service.POLLING_OPTIONS:
                 self.service.update_polling_interval(minutes)
+                if self.codex_service:
+                    self.codex_service.update_polling_interval(minutes)
             return self._json_response({'ok': True})
 
         @app.post('/api/settings/threshold')
