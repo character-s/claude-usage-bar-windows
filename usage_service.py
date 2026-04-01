@@ -32,7 +32,7 @@ class UsageService:
     DEFAULT_SCOPES = ["user:profile", "user:inference"]
 
     DEFAULT_POLLING_MINUTES = 30
-    POLLING_OPTIONS = [5, 15, 30, 60]
+    POLLING_OPTIONS = [3, 5, 10, 30, 60]
     MAX_BACKOFF = 3600  # 1 hour
 
     def __init__(self):
