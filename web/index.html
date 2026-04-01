@@ -144,19 +144,21 @@
       <!-- Chart (only for primary) -->
       <div id="chart-section" class="chart-section">
         <div class="separator"></div>
-        <div class="range-selector" id="range-selector">
-          <button class="range-btn" data-range="1h">1h</button>
-          <button class="range-btn active" data-range="6h">6h</button>
-          <button class="range-btn" data-range="1d">1d</button>
-          <button class="range-btn" data-range="7d">7d</button>
-          <button class="range-btn" data-range="30d">30d</button>
+        <div class="chart-toolbar">
+          <div class="range-selector" id="range-selector">
+            <button class="range-btn" data-range="1h">1h</button>
+            <button class="range-btn active" data-range="6h">6h</button>
+            <button class="range-btn" data-range="1d">1d</button>
+            <button class="range-btn" data-range="7d">7d</button>
+            <button class="range-btn" data-range="30d">30d</button>
+          </div>
+          <div class="chart-legend">
+            <span><span class="dot" style="background:var(--blue)"></span> 5h</span>
+            <span><span class="dot" style="background:var(--orange)"></span> 7d</span>
+          </div>
         </div>
         <div class="chart-wrapper">
           <canvas id="usage-chart"></canvas>
-        </div>
-        <div class="chart-legend">
-          <span><span class="dot" style="background:var(--blue)"></span> 5h</span>
-          <span><span class="dot" style="background:var(--orange)"></span> 7d</span>
         </div>
       </div>
 
@@ -374,7 +376,7 @@
     <div class="settings-section">
       <div class="about-row">
         <span class="about-label">Claude Usage Bar</span>
-        <span class="about-version">v1.3.1</span>
+        <span class="about-version">v1.4.0</span>
       </div>
     </div>
   </div>

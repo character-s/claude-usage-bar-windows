@@ -374,18 +374,7 @@ function initChart() {
       animation: { duration: 300 },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: '#1e1e2e',
-          titleColor: '#e8e8f0',
-          bodyColor: '#b0b0c8',
-          borderColor: '#2e2e48',
-          borderWidth: 1,
-          callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.y).toFixed(1)}%`,
-          },
-        },
+        tooltip: { enabled: false },
       },
       scales: {
         x: {
@@ -408,7 +397,7 @@ function initChart() {
           },
         },
       },
-      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      events: [],
     },
   });
 }
@@ -417,9 +406,24 @@ async function refreshChart() {
   const history = await apiGet(`/api/history/${currentRange}`);
   if (!history || !usageChart) return;
 
-  const labels = history.map(p => {
+  // Fix X-axis to cover the full selected range
+  const rangeMs = { '1h': 3600000, '6h': 21600000, '1d': 86400000, '7d': 604800000, '30d': 2592000000 };
+  const now = new Date();
+  const rangeStart = new Date(now.getTime() - (rangeMs[currentRange] || 21600000));
+  const nullPt = { pct_5h: null, pct_7d: null, codex_primary: null, codex_secondary: null };
+
+  const points = [...history];
+  if (points.length === 0 || new Date(points[0].timestamp) - rangeStart > 60000) {
+    points.unshift({ timestamp: rangeStart.toISOString(), ...nullPt });
+  }
+  if (points.length === 0 || now - new Date(points[points.length - 1].timestamp) > 60000) {
+    points.push({ timestamp: now.toISOString(), ...nullPt });
+  }
+
+  const useTime = currentRange === '1h' || currentRange === '6h' || currentRange === '1d';
+  const labels = points.map(p => {
     const d = new Date(p.timestamp);
-    if (currentRange === '1h' || currentRange === '6h') {
+    if (useTime) {
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     return d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
@@ -430,11 +434,11 @@ async function refreshChart() {
 
   usageChart.data.labels = labels;
   if (isCodex) {
-    usageChart.data.datasets[0].data = history.map(p => (p.codex_primary || 0) * 100);
-    usageChart.data.datasets[1].data = history.map(p => (p.codex_secondary || 0) * 100);
+    usageChart.data.datasets[0].data = points.map(p => p.codex_primary != null ? p.codex_primary * 100 : null);
+    usageChart.data.datasets[1].data = points.map(p => p.codex_secondary != null ? p.codex_secondary * 100 : null);
   } else {
-    usageChart.data.datasets[0].data = history.map(p => p.pct_5h * 100);
-    usageChart.data.datasets[1].data = history.map(p => p.pct_7d * 100);
+    usageChart.data.datasets[0].data = points.map(p => p.pct_5h != null ? p.pct_5h * 100 : null);
+    usageChart.data.datasets[1].data = points.map(p => p.pct_7d != null ? p.pct_7d * 100 : null);
   }
   usageChart.update('none');
 }

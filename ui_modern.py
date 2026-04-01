@@ -236,7 +236,7 @@ class Api:
             height = int(data.get('height', 0))
             if height > 0:
                 # Clamp to reasonable range
-                height = max(300, min(height, 900))
+                height = max(300, min(height, 1200))
                 self._resize_window(height)
             return self._json_response({'ok': True})
 

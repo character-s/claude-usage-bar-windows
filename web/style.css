@@ -158,12 +158,18 @@ body {
   margin: 8px 0 0;
 }
 
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
 .range-selector {
   display: flex;
   background: var(--bar-bg);
   border-radius: 15px;
   padding: 2px;
-  margin-bottom: 10px;
   width: fit-content;
 }
 
@@ -204,8 +210,7 @@ body {
 
 .chart-legend {
   display: flex;
-  gap: 16px;
-  padding: 4px 8px 0;
+  gap: 12px;
   font-size: 11px;
   color: var(--fg-muted);
 }
