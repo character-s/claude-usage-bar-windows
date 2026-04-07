@@ -446,9 +446,15 @@ async function refreshChart() {
   if (points.length === 0 || new Date(points[0].timestamp) - rangeStart > 60000) {
     points.unshift({ timestamp: rangeStart.toISOString(), ...nullPt });
   }
-  if (points.length === 0 || now - new Date(points[points.length - 1].timestamp) > 60000) {
-    points.push({ timestamp: now.toISOString(), ...nullPt });
+  // Extend last data point to now (solid line to current time)
+  if (points.length > 0 && now - new Date(points[points.length - 1].timestamp) > 60000) {
+    const last = points[points.length - 1];
+    points.push({ ...last, timestamp: now.toISOString() });
   }
+
+  // 7d/30d: disable spanGaps to avoid angular connections across gaps
+  const useSpanGaps = currentRange !== '7d' && currentRange !== '30d';
+  usageChart.data.datasets.forEach(ds => { ds.spanGaps = useSpanGaps; });
 
   // Set X-axis range
   usageChart.options.scales.x.min = rangeStart.getTime();
