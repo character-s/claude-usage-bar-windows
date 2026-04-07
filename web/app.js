@@ -367,7 +367,7 @@ function initChart() {
           fill: false,
           spanGaps: true,
           segment: {
-            borderDash: ctx => ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
+            borderDash: ctx => currentRange !== '7d' && currentRange !== '30d' && ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
           },
         },
         {
@@ -380,7 +380,7 @@ function initChart() {
           fill: false,
           spanGaps: true,
           segment: {
-            borderDash: ctx => ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
+            borderDash: ctx => currentRange !== '7d' && currentRange !== '30d' && ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
           },
         },
       ],
