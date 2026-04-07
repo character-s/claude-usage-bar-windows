@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -178,12 +179,14 @@ class ClaudeUsageBarModernApp:
         self.history_service.flush_to_disk()
         self.service.stop_polling()
         self.codex_service.stop_polling()
-        self.api.shutdown_browser()
         if self.tray_icon:
             try:
                 self.tray_icon.stop()
             except Exception:
                 pass
+        self.api.shutdown_browser()
+        # Force exit after a short grace period in case webview.start() doesn't return
+        threading.Timer(2.0, lambda: os._exit(0)).start()
 
     def _on_exit_widget(self):
         """Called when close button is pressed in widget mode."""

@@ -4,9 +4,10 @@ let usageChart = null;
 let currentRange = '6h';
 let countdownTimer = null;
 let cachedUsage = null;
+let gapThresholdMs = 30 * 60 * 1000 * 2.5; // polling_minutes * 2.5
 let pollTimer = null;
 let needsResize = false;
-let prevCodexHasData = false;
+let prevContentHeight = 0;
 
 // Determine mode from URL params
 const urlParams = new URLSearchParams(window.location.search);
@@ -81,6 +82,9 @@ async function refreshData() {
   const usage = await apiGet('/api/usage');
   if (!usage) return;
   cachedUsage = usage;
+  if (usage.polling_minutes) {
+    gapThresholdMs = usage.polling_minutes * 60 * 1000 * 2.5;
+  }
 
   const signinEl = document.getElementById('signin-section');
   const usageEl = document.getElementById('usage-section');
@@ -221,11 +225,16 @@ async function refreshData() {
     await refreshChart();
   }
 
-  // Resize when codex data availability changes (e.g. first fetch)
-  const codexHasData = usage.codex_primary_pct !== null;
-  if (codexHasData !== prevCodexHasData) {
-    prevCodexHasData = codexHasData;
-    requestResize();
+  // Resize only when content height changes significantly (>10px)
+  // Skip when settings view is active (main-view is hidden, scrollHeight unreliable)
+  if (!document.getElementById('settings-view').classList.contains('active')) {
+    requestAnimationFrame(() => {
+      const h = document.getElementById('main-view').scrollHeight;
+      if (Math.abs(h - prevContentHeight) > 10) {
+        prevContentHeight = h;
+        requestResize();
+      }
+    });
   }
 }
 
@@ -356,6 +365,10 @@ function initChart() {
           tension: 0.4,
           pointRadius: 0,
           fill: false,
+          spanGaps: true,
+          segment: {
+            borderDash: ctx => ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
+          },
         },
         {
           label: '7d',
@@ -365,6 +378,10 @@ function initChart() {
           tension: 0.4,
           pointRadius: 0,
           fill: false,
+          spanGaps: true,
+          segment: {
+            borderDash: ctx => ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
+          },
         },
       ],
     },
@@ -378,8 +395,21 @@ function initChart() {
       },
       scales: {
         x: {
+          type: 'linear',
           grid: { color: '#2e2e48', drawBorder: false },
-          ticks: { color: '#606078', font: { size: 10 }, maxTicksLimit: 4 },
+          ticks: {
+            color: '#606078',
+            font: { size: 10 },
+            maxTicksLimit: 4,
+            callback: function(value) {
+              const d = new Date(value);
+              const r = currentRange;
+              if (r === '1h' || r === '6h' || r === '1d') {
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              }
+              return d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+            },
+          },
         },
         y: {
           min: 0,
@@ -420,25 +450,32 @@ async function refreshChart() {
     points.push({ timestamp: now.toISOString(), ...nullPt });
   }
 
-  const useTime = currentRange === '1h' || currentRange === '6h' || currentRange === '1d';
-  const labels = points.map(p => {
-    const d = new Date(p.timestamp);
-    if (useTime) {
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    return d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
-  });
+  // Set X-axis range
+  usageChart.options.scales.x.min = rangeStart.getTime();
+  usageChart.options.scales.x.max = now.getTime();
 
   const primary = cachedUsage ? cachedUsage.primary_provider : 'claude';
   const isCodex = primary === 'codex';
 
-  usageChart.data.labels = labels;
+  usageChart.data.labels = [];
   if (isCodex) {
-    usageChart.data.datasets[0].data = points.map(p => p.codex_primary != null ? p.codex_primary * 100 : null);
-    usageChart.data.datasets[1].data = points.map(p => p.codex_secondary != null ? p.codex_secondary * 100 : null);
+    usageChart.data.datasets[0].data = points.map(p => ({
+      x: new Date(p.timestamp).getTime(),
+      y: p.codex_primary != null ? p.codex_primary * 100 : null,
+    }));
+    usageChart.data.datasets[1].data = points.map(p => ({
+      x: new Date(p.timestamp).getTime(),
+      y: p.codex_secondary != null ? p.codex_secondary * 100 : null,
+    }));
   } else {
-    usageChart.data.datasets[0].data = points.map(p => p.pct_5h != null ? p.pct_5h * 100 : null);
-    usageChart.data.datasets[1].data = points.map(p => p.pct_7d != null ? p.pct_7d * 100 : null);
+    usageChart.data.datasets[0].data = points.map(p => ({
+      x: new Date(p.timestamp).getTime(),
+      y: p.pct_5h != null ? p.pct_5h * 100 : null,
+    }));
+    usageChart.data.datasets[1].data = points.map(p => ({
+      x: new Date(p.timestamp).getTime(),
+      y: p.pct_7d != null ? p.pct_7d * 100 : null,
+    }));
   }
   usageChart.update('none');
 }
@@ -482,6 +519,7 @@ document.getElementById('provider-selector').addEventListener('click', async (e)
 async function signIn() {
   await apiPost('/api/sign-in');
   document.getElementById('code-entry').style.display = '';
+  requestResize();
 }
 
 async function submitCode() {
@@ -502,6 +540,7 @@ async function signOut() {
   await apiPost('/api/sign-out');
   hideSettings();
   await refreshData();
+  requestResize();
 }
 
 async function codexSignIn() {
@@ -511,6 +550,7 @@ async function codexSignIn() {
 function toggleSigninCodex() {
   const entry = document.getElementById('signin-codex-entry');
   entry.style.display = entry.style.display === 'none' ? '' : 'none';
+  requestResize();
 }
 
 async function submitSigninCodexToken() {
@@ -545,6 +585,7 @@ async function submitCodexToken() {
 async function codexSignOut() {
   await apiPost('/api/codex/sign-out');
   await refreshData();
+  requestResize();
   loadSettings();
 }
 

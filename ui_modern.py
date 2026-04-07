@@ -235,8 +235,9 @@ class Api:
             data = request.json or {}
             height = int(data.get('height', 0))
             if height > 0:
-                # Clamp to reasonable range
-                height = max(300, min(height, 1200))
+                # Clamp: min 300, max = screen work area height
+                max_h = self._get_screen_work_height()
+                height = max(300, min(height, max_h))
                 self._resize_window(height)
             return self._json_response({'ok': True})
 
@@ -253,6 +254,7 @@ class Api:
         result = {
             'primary_provider': self._load_primary_provider(),
             'dual_mode': self._load_dual_mode(),
+            'polling_minutes': s.polling_minutes,
             'is_authenticated': s.is_authenticated,
             'is_awaiting_code': s.is_awaiting_code,
             'last_error': s.last_error,
@@ -712,6 +714,25 @@ class Api:
                 pass
         settings["dual_mode"] = enabled
         settings_file.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    def _get_screen_work_height(self) -> int:
+        """Return the screen work-area height in logical (CSS) pixels."""
+        try:
+            import ctypes
+            import ctypes.wintypes
+            SPI_GETWORKAREA = 0x0030
+            rc = ctypes.wintypes.RECT()
+            ctypes.windll.user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rc), 0)
+            phys_h = rc.bottom - rc.top
+            hwnd = self._get_hwnd()
+            if hwnd:
+                dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+                scale = dpi / 96.0
+            else:
+                scale = 1.0
+            return int(phys_h / scale)
+        except Exception:
+            return 1200  # fallback
 
     def _resize_window(self, new_height: int):
         """Resize the webview window height only, preserving current width.
