@@ -368,7 +368,7 @@ function initChart() {
           fill: false,
           spanGaps: true,
           segment: {
-            borderDash: ctx => currentRange !== '7d' && currentRange !== '30d' && ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
+            borderDash: ctx => (currentRange === '1h' || currentRange === '6h') && ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
           },
         },
         {
@@ -382,7 +382,7 @@ function initChart() {
           fill: false,
           spanGaps: true,
           segment: {
-            borderDash: ctx => currentRange !== '7d' && currentRange !== '30d' && ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
+            borderDash: ctx => (currentRange === '1h' || currentRange === '6h') && ctx.p1.parsed.x - ctx.p0.parsed.x > gapThresholdMs ? [6, 3] : undefined,
           },
         },
       ],
@@ -442,32 +442,33 @@ async function refreshChart() {
   const now = new Date();
   const rangeStart = new Date(now.getTime() - (rangeMs[currentRange] || 21600000));
   const nullPt = { pct_5h: null, pct_7d: null, codex_primary: null, codex_secondary: null };
-  const isLongRange = currentRange === '7d' || currentRange === '30d';
+  const isLongRange = !isShortRange; // 1d/7d/30d use category scale
+  const isShortRange = currentRange === '1h' || currentRange === '6h';
 
   const points = [...history];
   if (points.length === 0 || new Date(points[0].timestamp) - rangeStart > 60000) {
     points.unshift({ timestamp: rangeStart.toISOString(), ...nullPt });
   }
-  if (isLongRange) {
-    // Long range: append null sentinel (gap at end)
-    if (points.length === 0 || now - new Date(points[points.length - 1].timestamp) > 60000) {
-      points.push({ timestamp: now.toISOString(), ...nullPt });
-    }
-  } else {
-    // Short range: extend last data point to now (solid line to current time)
+  if (isShortRange) {
+    // 1h/6h: extend last data point to now (solid line to current time)
     if (points.length > 0 && now - new Date(points[points.length - 1].timestamp) > 60000) {
       const last = points[points.length - 1];
       points.push({ ...last, timestamp: now.toISOString() });
+    }
+  } else {
+    // 1d/7d/30d: append null sentinel (gap at end)
+    if (points.length === 0 || now - new Date(points[points.length - 1].timestamp) > 60000) {
+      points.push({ timestamp: now.toISOString(), ...nullPt });
     }
   }
 
   const primary = cachedUsage ? cachedUsage.primary_provider : 'claude';
   const isCodex = primary === 'codex';
 
-  // Switch dataset options per range
+  // 1h/6h: spanGaps + monotone + dashed gaps; 1d/7d/30d: original style
   usageChart.data.datasets.forEach(ds => {
-    ds.spanGaps = !isLongRange;
-    ds.cubicInterpolationMode = isLongRange ? 'default' : 'monotone';
+    ds.spanGaps = isShortRange;
+    ds.cubicInterpolationMode = isShortRange ? 'monotone' : 'default';
   });
 
   if (isLongRange) {
@@ -479,6 +480,9 @@ async function refreshChart() {
 
     usageChart.data.labels = points.map(p => {
       const d = new Date(p.timestamp);
+      if (currentRange === '1d') {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
       return d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
     });
     if (isCodex) {
