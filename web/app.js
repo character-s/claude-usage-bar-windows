@@ -438,52 +438,86 @@ async function refreshChart() {
   const history = await apiGet(`/api/history/${currentRange}`);
   if (!history || !usageChart) return;
 
-  // Fix X-axis to cover the full selected range
   const rangeMs = { '1h': 3600000, '6h': 21600000, '1d': 86400000, '7d': 604800000, '30d': 2592000000 };
   const now = new Date();
   const rangeStart = new Date(now.getTime() - (rangeMs[currentRange] || 21600000));
   const nullPt = { pct_5h: null, pct_7d: null, codex_primary: null, codex_secondary: null };
+  const isLongRange = currentRange === '7d' || currentRange === '30d';
 
   const points = [...history];
   if (points.length === 0 || new Date(points[0].timestamp) - rangeStart > 60000) {
     points.unshift({ timestamp: rangeStart.toISOString(), ...nullPt });
   }
-  // Extend last data point to now (solid line to current time)
-  if (points.length > 0 && now - new Date(points[points.length - 1].timestamp) > 60000) {
-    const last = points[points.length - 1];
-    points.push({ ...last, timestamp: now.toISOString() });
+  if (isLongRange) {
+    // Long range: append null sentinel (gap at end)
+    if (points.length === 0 || now - new Date(points[points.length - 1].timestamp) > 60000) {
+      points.push({ timestamp: now.toISOString(), ...nullPt });
+    }
+  } else {
+    // Short range: extend last data point to now (solid line to current time)
+    if (points.length > 0 && now - new Date(points[points.length - 1].timestamp) > 60000) {
+      const last = points[points.length - 1];
+      points.push({ ...last, timestamp: now.toISOString() });
+    }
   }
-
-  // 7d/30d: disable spanGaps to avoid angular connections across gaps
-  const useSpanGaps = currentRange !== '7d' && currentRange !== '30d';
-  usageChart.data.datasets.forEach(ds => { ds.spanGaps = useSpanGaps; });
-
-  // Set X-axis range
-  usageChart.options.scales.x.min = rangeStart.getTime();
-  usageChart.options.scales.x.max = now.getTime();
 
   const primary = cachedUsage ? cachedUsage.primary_provider : 'claude';
   const isCodex = primary === 'codex';
 
-  usageChart.data.labels = [];
-  if (isCodex) {
-    usageChart.data.datasets[0].data = points.map(p => ({
-      x: new Date(p.timestamp).getTime(),
-      y: p.codex_primary != null ? p.codex_primary * 100 : null,
-    }));
-    usageChart.data.datasets[1].data = points.map(p => ({
-      x: new Date(p.timestamp).getTime(),
-      y: p.codex_secondary != null ? p.codex_secondary * 100 : null,
-    }));
+  // Switch dataset options per range
+  usageChart.data.datasets.forEach(ds => {
+    ds.spanGaps = !isLongRange;
+    ds.cubicInterpolationMode = isLongRange ? 'default' : 'monotone';
+  });
+
+  if (isLongRange) {
+    // 7d/30d: category scale (equal spacing, original style)
+    usageChart.options.scales.x.type = 'category';
+    delete usageChart.options.scales.x.min;
+    delete usageChart.options.scales.x.max;
+    usageChart.options.scales.x.ticks.callback = undefined;
+
+    usageChart.data.labels = points.map(p => {
+      const d = new Date(p.timestamp);
+      return d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+    });
+    if (isCodex) {
+      usageChart.data.datasets[0].data = points.map(p => p.codex_primary != null ? p.codex_primary * 100 : null);
+      usageChart.data.datasets[1].data = points.map(p => p.codex_secondary != null ? p.codex_secondary * 100 : null);
+    } else {
+      usageChart.data.datasets[0].data = points.map(p => p.pct_5h != null ? p.pct_5h * 100 : null);
+      usageChart.data.datasets[1].data = points.map(p => p.pct_7d != null ? p.pct_7d * 100 : null);
+    }
   } else {
-    usageChart.data.datasets[0].data = points.map(p => ({
-      x: new Date(p.timestamp).getTime(),
-      y: p.pct_5h != null ? p.pct_5h * 100 : null,
-    }));
-    usageChart.data.datasets[1].data = points.map(p => ({
-      x: new Date(p.timestamp).getTime(),
-      y: p.pct_7d != null ? p.pct_7d * 100 : null,
-    }));
+    // 1h/6h/1d: linear time scale (proportional spacing, dashed gaps)
+    usageChart.options.scales.x.type = 'linear';
+    usageChart.options.scales.x.min = rangeStart.getTime();
+    usageChart.options.scales.x.max = now.getTime();
+    usageChart.options.scales.x.ticks.callback = function(value) {
+      const d = new Date(value);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    usageChart.data.labels = [];
+    if (isCodex) {
+      usageChart.data.datasets[0].data = points.map(p => ({
+        x: new Date(p.timestamp).getTime(),
+        y: p.codex_primary != null ? p.codex_primary * 100 : null,
+      }));
+      usageChart.data.datasets[1].data = points.map(p => ({
+        x: new Date(p.timestamp).getTime(),
+        y: p.codex_secondary != null ? p.codex_secondary * 100 : null,
+      }));
+    } else {
+      usageChart.data.datasets[0].data = points.map(p => ({
+        x: new Date(p.timestamp).getTime(),
+        y: p.pct_5h != null ? p.pct_5h * 100 : null,
+      }));
+      usageChart.data.datasets[1].data = points.map(p => ({
+        x: new Date(p.timestamp).getTime(),
+        y: p.pct_7d != null ? p.pct_7d * 100 : null,
+      }));
+    }
   }
   usageChart.update('none');
 }
