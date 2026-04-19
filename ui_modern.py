@@ -14,6 +14,8 @@ from typing import Optional, TYPE_CHECKING
 import webview
 from bottle import Bottle, static_file, request, response
 
+from version import VERSION, GITHUB_REPO
+
 if TYPE_CHECKING:
     from usage_service import UsageService
     from history_service import HistoryService
@@ -231,6 +233,27 @@ class Api:
             enabled = bool(data.get('enabled', False))
             self._save_dual_mode(enabled)
             return self._json_response({'ok': True})
+
+        @app.route('/api/version')
+        def get_version():
+            return self._json_response({
+                'version': VERSION,
+                'repo': GITHUB_REPO,
+            })
+
+        @app.post('/api/check-update')
+        def check_update():
+            return self._json_response(self._check_update())
+
+        @app.post('/api/open-url')
+        def open_url():
+            import webbrowser
+            data = request.json or {}
+            url = str(data.get('url', ''))
+            if url.startswith('https://') or url.startswith('http://'):
+                webbrowser.open(url)
+                return self._json_response({'ok': True})
+            return self._json_response({'ok': False, 'error': 'invalid url'})
 
         @app.post('/api/resize')
         def resize_to_content():
@@ -768,6 +791,48 @@ class Api:
             return int(phys_h / scale)
         except Exception:
             return 1200  # fallback
+
+    def _check_update(self) -> dict:
+        """Query GitHub Releases API for the latest release and compare with current version."""
+        import urllib.request
+        import urllib.error
+
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": f"claude-usage-bar/{VERSION}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return {'ok': False, 'error': f'GitHub API HTTP {e.code}'}
+        except Exception as e:
+            return {'ok': False, 'error': f'Network error: {e}'}
+
+        tag = (data.get('tag_name') or '').lstrip('v').strip()
+        if not tag:
+            return {'ok': False, 'error': 'No release found'}
+
+        try:
+            latest_t = tuple(int(x) for x in tag.split('.'))
+            current_t = tuple(int(x) for x in VERSION.split('.'))
+            has_update = latest_t > current_t
+        except Exception:
+            has_update = tag != VERSION
+
+        return {
+            'ok': True,
+            'current': VERSION,
+            'latest': tag,
+            'has_update': has_update,
+            'release_url': data.get('html_url', ''),
+            'release_name': data.get('name', ''),
+            'published_at': data.get('published_at', ''),
+        }
 
     def _resize_window(self, new_height: int):
         """Resize the webview window height only, preserving current width.

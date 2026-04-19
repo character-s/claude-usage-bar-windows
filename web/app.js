@@ -770,6 +770,49 @@ function updateCountdowns() {
     formatUpdatedTime(cachedUsage.last_updated);
 }
 
+// ── Update check ──
+
+async function initVersion() {
+  const info = await apiGet('/api/version');
+  if (info && info.version) {
+    const el = document.getElementById('about-version');
+    if (el) el.textContent = 'v' + info.version;
+  }
+}
+
+async function checkForUpdate() {
+  const btn = document.getElementById('update-btn');
+  const status = document.getElementById('update-status');
+  if (!btn || !status) return;
+
+  btn.disabled = true;
+  status.className = 'update-status';
+  status.textContent = '確認中…';
+  status.onclick = null;
+
+  const res = await apiPost('/api/check-update');
+  btn.disabled = false;
+
+  if (!res || !res.ok) {
+    status.className = 'update-status error';
+    status.textContent = (res && res.error) ? res.error : '確認に失敗しました';
+    return;
+  }
+
+  if (res.has_update) {
+    status.className = 'update-status has-update';
+    status.textContent = `新しいバージョン v${res.latest} があります`;
+    status.title = res.release_name || `v${res.latest}`;
+    if (res.release_url) {
+      status.onclick = () => apiPost('/api/open-url', { url: res.release_url });
+    }
+  } else {
+    status.className = 'update-status';
+    status.textContent = `最新です (v${res.current})`;
+  }
+  requestResize();
+}
+
 // ── Init ──
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -819,6 +862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initChart(currentRange === '1h' || currentRange === '6h' ? 'linear' : 'category');
   await refreshData();
+  initVersion();
   requestResize();
   countdownTimer = setInterval(updateCountdowns, 1000);
   // Poll for updates every 15 seconds
