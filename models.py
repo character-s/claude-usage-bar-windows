@@ -77,6 +77,7 @@ class UsageResponse:
     seven_day: Optional[UsageBucket] = None
     seven_day_opus: Optional[UsageBucket] = None
     seven_day_sonnet: Optional[UsageBucket] = None
+    seven_day_claude_design: Optional[UsageBucket] = None
     extra_usage: Optional[ExtraUsage] = None
 
     def reconciled(self, previous: Optional[UsageResponse], now: Optional[datetime] = None) -> UsageResponse:
@@ -95,16 +96,25 @@ class UsageResponse:
             seven_day_sonnet=self.seven_day_sonnet.reconciled(
                 previous.seven_day_sonnet if previous else None, 7 * 86400, now
             ) if self.seven_day_sonnet else None,
+            seven_day_claude_design=self.seven_day_claude_design.reconciled(
+                previous.seven_day_claude_design if previous else None, 7 * 86400, now
+            ) if self.seven_day_claude_design else None,
             extra_usage=self.extra_usage,
         )
 
     @staticmethod
     def from_dict(d: dict) -> UsageResponse:
+        design_raw = (
+            d.get("seven_day_omelette")
+            or d.get("seven_day_claude_design")
+            or d.get("seven_day_design")
+        )
         return UsageResponse(
             five_hour=UsageBucket.from_dict(d.get("five_hour")),
             seven_day=UsageBucket.from_dict(d.get("seven_day")),
             seven_day_opus=UsageBucket.from_dict(d.get("seven_day_opus")),
             seven_day_sonnet=UsageBucket.from_dict(d.get("seven_day_sonnet")),
+            seven_day_claude_design=UsageBucket.from_dict(design_raw),
             extra_usage=ExtraUsage.from_dict(d.get("extra_usage")),
         )
 

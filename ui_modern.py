@@ -60,6 +60,8 @@ class Api:
         self._widget_mode = False
         self._dpi_scale: float = 1.0  # physical / logical ratio, set after first show
 
+        self._heal_startup_path()
+
     def set_quit_callback(self, callback):
         self._quit_callback = callback
 
@@ -268,6 +270,8 @@ class Api:
             'reset_7d': None,
             'opus_util': None,
             'sonnet_util': None,
+            'design_util': None,
+            'reset_design': None,
             'extra_enabled': False,
             'extra_util': None,
             'extra_used_str': '',
@@ -297,6 +301,10 @@ class Api:
                 result['opus_util'] = usage.seven_day_opus.utilization
             if usage.seven_day_sonnet and usage.seven_day_sonnet.utilization is not None:
                 result['sonnet_util'] = usage.seven_day_sonnet.utilization
+            if usage.seven_day_claude_design and usage.seven_day_claude_design.utilization is not None:
+                result['design_util'] = usage.seven_day_claude_design.utilization
+                if usage.seven_day_claude_design.resets_at_date:
+                    result['reset_design'] = usage.seven_day_claude_design.resets_at_date.isoformat()
             if usage.extra_usage and usage.extra_usage.is_enabled:
                 from models import ExtraUsage
                 result['extra_enabled'] = True
@@ -396,6 +404,33 @@ class Api:
                     winreg.DeleteValue(key, "ClaudeUsageBar")
                 except FileNotFoundError:
                     pass
+            winreg.CloseKey(key)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _heal_startup_path():
+        """If Run registry points to a different exe path, rewrite to current."""
+        if not getattr(sys, 'frozen', False):
+            return
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_READ | winreg.KEY_SET_VALUE,
+            )
+            try:
+                existing, _ = winreg.QueryValueEx(key, "ClaudeUsageBar")
+            except FileNotFoundError:
+                winreg.CloseKey(key)
+                return
+            current_exe = os.path.normcase(os.path.abspath(sys.executable))
+            expected = f'"{sys.executable}" --silent'
+            # Extract registered exe path for comparison
+            reg_exe = existing.split('"')[1] if existing.startswith('"') else existing.split()[0]
+            reg_exe_norm = os.path.normcase(os.path.abspath(reg_exe))
+            if reg_exe_norm != current_exe:
+                winreg.SetValueEx(key, "ClaudeUsageBar", 0, winreg.REG_SZ, expected)
             winreg.CloseKey(key)
         except Exception:
             pass
@@ -739,6 +774,8 @@ class Api:
 
         new_height is in logical (CSS) pixels. We query DPI directly from
         the window handle to convert to physical pixels for SetWindowPos.
+        Skips the SetWindowPos call entirely when the target height is
+        within 2 physical pixels of the current height (no-op resize).
         """
         try:
             import ctypes
@@ -749,12 +786,16 @@ class Api:
             wr = ctypes.wintypes.RECT()
             ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(wr))
             cur_w = wr.right - wr.left
+            cur_h = wr.bottom - wr.top
             try:
                 dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
                 scale = dpi / 96.0
             except Exception:
                 scale = self._dpi_scale
             phys_h = int(new_height * scale)
+            # Skip no-op resizes to avoid flicker and unnecessary SetWindowPos calls
+            if abs(phys_h - cur_h) < 2:
+                return
             SWP_NOMOVE = 0x0002
             SWP_NOZORDER = 0x0004
             ctypes.windll.user32.SetWindowPos(hwnd, None, 0, 0, cur_w, phys_h, SWP_NOMOVE | SWP_NOZORDER)

@@ -7,7 +7,6 @@ let cachedUsage = null;
 let gapThresholdMs = 30 * 60 * 1000 * 2.5; // polling_minutes * 2.5
 let pollTimer = null;
 let needsResize = false;
-let prevContentHeight = 0;
 
 // Determine mode from URL params
 const urlParams = new URLSearchParams(window.location.search);
@@ -22,12 +21,13 @@ function pctColor(pct) {
   return '#f43f5e';
 }
 
-function formatRelativeTime(isoStr) {
+function formatRelativeTime(isoStr, roundHour = true) {
   if (!isoStr) return '';
   const target = new Date(isoStr);
   const now = new Date();
   let diff = Math.floor((target - now) / 1000);
   if (diff < 0) return 'Expired';
+  const totalSec = diff;
   const days = Math.floor(diff / 86400); diff %= 86400;
   const hours = Math.floor(diff / 3600); diff %= 3600;
   const mins = Math.floor(diff / 60);
@@ -35,7 +35,21 @@ function formatRelativeTime(isoStr) {
   if (days > 0) parts.push(`${days}d`);
   if (hours > 0) parts.push(`${hours}h`);
   if (mins > 0 && days === 0) parts.push(`${mins}m`);
-  return parts.length ? 'Resets ' + parts.join(' ') : 'Resets < 1m';
+  const rel = parts.length ? 'Resets ' + parts.join(' ') : 'Resets < 1m';
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const dispTime = roundHour
+    ? new Date(Math.round(target.getTime() / 3600000) * 3600000)
+    : target;
+  const mm = roundHour ? '00' : pad(dispTime.getMinutes());
+  const hh = pad(dispTime.getHours());
+  let abs;
+  if (totalSec < 86400) {
+    abs = `${hh}:${mm}`;
+  } else {
+    abs = `${pad(dispTime.getMonth() + 1)}/${pad(dispTime.getDate())} ${hh}:${mm}`;
+  }
+  return `${rel} (${abs})`;
 }
 
 function formatUpdatedTime(isoStr) {
@@ -225,16 +239,10 @@ async function refreshData() {
     await refreshChart();
   }
 
-  // Resize only when content height changes significantly (>10px)
+  // Always request a resize after refresh — Python side skips no-op resizes.
   // Skip when settings view is active (main-view is hidden, scrollHeight unreliable)
   if (!document.getElementById('settings-view').classList.contains('active')) {
-    requestAnimationFrame(() => {
-      const h = document.getElementById('main-view').scrollHeight;
-      if (Math.abs(h - prevContentHeight) > 10) {
-        prevContentHeight = h;
-        requestResize();
-      }
-    });
+    requestResize();
   }
 }
 
@@ -246,7 +254,7 @@ function updateClaudeBuckets(usage) {
 
   // Model breakdown
   const modelSection = document.getElementById('model-breakdown');
-  const hasModels = usage.opus_util !== null || usage.sonnet_util !== null;
+  const hasModels = usage.opus_util !== null || usage.sonnet_util !== null || usage.design_util !== null;
   modelSection.style.display = hasModels ? '' : 'none';
 
   if (usage.opus_util !== null) {
@@ -271,6 +279,21 @@ function updateClaudeBuckets(usage) {
     barSonnet.style.background = pctColor(sonnetPct);
   } else {
     document.getElementById('bucket-sonnet').style.display = 'none';
+  }
+
+  if (usage.design_util !== null && usage.design_util !== undefined) {
+    document.getElementById('bucket-design').style.display = '';
+    const designPct = usage.design_util / 100;
+    document.getElementById('pct-design').textContent = `${Math.round(usage.design_util)}%`;
+    document.getElementById('pct-design').style.color = pctColor(designPct);
+    const barDesign = document.getElementById('bar-design');
+    barDesign.style.width = `${usage.design_util > 0 ? Math.max(2, usage.design_util) : 0}%`;
+    barDesign.style.background = pctColor(designPct);
+    const resetEl = document.getElementById('reset-design');
+    resetEl.textContent = formatRelativeTime(usage.reset_design);
+    resetEl.style.color = usage.design_util > 0 ? pctColor(designPct) : '#606078';
+  } else {
+    document.getElementById('bucket-design').style.display = 'none';
   }
 
   // Extra usage
@@ -329,7 +352,8 @@ function updateBucket(key, pct, resetIso, util) {
   barEl.style.width = `${Math.max(widthPct > 0 ? 3 : 0, widthPct)}%`;
   barEl.style.background = pct > 0 ? pctColor(pct) : '#2a2a42';
 
-  resetEl.textContent = formatRelativeTime(resetIso);
+  const isCodex = key.includes('codex');
+  resetEl.textContent = formatRelativeTime(resetIso, !isCodex);
   resetEl.style.color = pct > 0 ? pctColor(pct) : '#606078';
 }
 
@@ -341,6 +365,8 @@ function requestResize() {
   if (document.getElementById('settings-view').classList.contains('active')) return;
   requestAnimationFrame(() => {
     setTimeout(() => {
+      // Re-check: settings may have been opened during the delay
+      if (document.getElementById('settings-view').classList.contains('active')) return;
       const el = document.getElementById('main-view');
       const height = el.scrollHeight + 2;
       apiPost('/api/resize', { height });
