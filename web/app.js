@@ -386,7 +386,7 @@ function initChart(scaleType) {
     type: 'linear',
     grid: { color: '#2e2e48', drawBorder: false },
     ticks: {
-      color: '#606078', font: { size: 10 }, maxTicksLimit: 4,
+      color: '#606078', font: { size: 10 }, count: 4, autoSkip: false,
       callback: function(value) {
         return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       },
@@ -492,6 +492,7 @@ async function refreshChart() {
     }
   } else {
     // Category scale: labels + simple arrays (original style)
+    usageChart.options.scales.x.ticks.maxTicksLimit = currentRange === '1d' ? 5 : 6;
     const useTime = currentRange === '1d';
     usageChart.data.labels = points.map(p => {
       const d = new Date(p.timestamp);
