@@ -21,7 +21,7 @@ function pctColor(pct) {
   return '#f43f5e';
 }
 
-function formatRelativeTime(isoStr, roundHour = true) {
+function formatRelativeTime(isoStr, roundHour = false) {
   if (!isoStr) return '';
   const target = new Date(isoStr);
   const now = new Date();
@@ -352,8 +352,7 @@ function updateBucket(key, pct, resetIso, util) {
   barEl.style.width = `${Math.max(widthPct > 0 ? 3 : 0, widthPct)}%`;
   barEl.style.background = pct > 0 ? pctColor(pct) : '#2a2a42';
 
-  const isCodex = key.includes('codex');
-  resetEl.textContent = formatRelativeTime(resetIso, !isCodex);
+  resetEl.textContent = formatRelativeTime(resetIso);
   resetEl.style.color = pct > 0 ? pctColor(pct) : '#606078';
 }
 
