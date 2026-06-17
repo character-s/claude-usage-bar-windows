@@ -9,6 +9,42 @@ import threading
 import time
 from pathlib import Path
 
+
+def _set_dpi_awareness() -> None:
+    """Make the process Per-Monitor-V2 DPI aware BEFORE any GUI/COM init.
+
+    Without this the host is only System-DPI-aware (pywebview's WinForms
+    backend calls SetProcessDPIAware()), so WebView2/Chromium applies the
+    monitor DPI a SECOND time on top of the system scaling. The compositor
+    surface ends up scale^2 (e.g. 605x859 vs a 484x687 window at 125%), and
+    the uncovered margin is painted with WebView2's default background -- the
+    "gray fill" that grows with monitor scale and covers the whole window on
+    higher-DPI / mixed-DPI setups. Must run before pywebview/pystray import
+    so it precedes COM init; process DPI awareness is immutable once set.
+    """
+    if sys.platform != 'win32':
+        return
+    import ctypes
+    user32 = ctypes.windll.user32
+    # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4 (Windows 10 1703+)
+    try:
+        if user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):
+            return
+    except Exception:
+        pass
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+        return
+    except Exception:
+        pass
+    try:
+        user32.SetProcessDPIAware()  # system-aware fallback (Vista+)
+    except Exception:
+        pass
+
+
+_set_dpi_awareness()
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 import pystray
