@@ -295,6 +295,9 @@ class Api:
             'sonnet_util': None,
             'design_util': None,
             'reset_design': None,
+            'fable_util': None,
+            'reset_fable': None,
+            'fable_label': 'Fable',
             'extra_enabled': False,
             'extra_util': None,
             'extra_used_str': '',
@@ -328,6 +331,11 @@ class Api:
                 result['design_util'] = usage.seven_day_claude_design.utilization
                 if usage.seven_day_claude_design.resets_at_date:
                     result['reset_design'] = usage.seven_day_claude_design.resets_at_date.isoformat()
+            if usage.seven_day_fable and usage.seven_day_fable.utilization is not None:
+                result['fable_util'] = usage.seven_day_fable.utilization
+                result['fable_label'] = usage.fable_label
+                if usage.seven_day_fable.resets_at_date:
+                    result['reset_fable'] = usage.seven_day_fable.resets_at_date.isoformat()
             if usage.extra_usage and usage.extra_usage.is_enabled:
                 from models import ExtraUsage
                 result['extra_enabled'] = True

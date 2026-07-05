@@ -254,7 +254,7 @@ function updateClaudeBuckets(usage) {
 
   // Model breakdown
   const modelSection = document.getElementById('model-breakdown');
-  const hasModels = usage.opus_util !== null || usage.sonnet_util !== null || usage.design_util !== null;
+  const hasModels = usage.opus_util !== null || usage.sonnet_util !== null || usage.design_util !== null || usage.fable_util !== null;
   modelSection.style.display = hasModels ? '' : 'none';
 
   if (usage.opus_util !== null) {
@@ -279,6 +279,22 @@ function updateClaudeBuckets(usage) {
     barSonnet.style.background = pctColor(sonnetPct);
   } else {
     document.getElementById('bucket-sonnet').style.display = 'none';
+  }
+
+  if (usage.fable_util !== null && usage.fable_util !== undefined) {
+    document.getElementById('bucket-fable').style.display = '';
+    document.getElementById('label-fable').textContent = usage.fable_label || 'Fable';
+    const fablePct = usage.fable_util / 100;
+    document.getElementById('pct-fable').textContent = `${Math.round(usage.fable_util)}%`;
+    document.getElementById('pct-fable').style.color = pctColor(fablePct);
+    const barFable = document.getElementById('bar-fable');
+    barFable.style.width = `${usage.fable_util > 0 ? Math.max(2, usage.fable_util) : 0}%`;
+    barFable.style.background = pctColor(fablePct);
+    const resetFableEl = document.getElementById('reset-fable');
+    resetFableEl.textContent = formatRelativeTime(usage.reset_fable);
+    resetFableEl.style.color = usage.fable_util > 0 ? pctColor(fablePct) : '#606078';
+  } else {
+    document.getElementById('bucket-fable').style.display = 'none';
   }
 
   if (usage.design_util !== null && usage.design_util !== undefined) {

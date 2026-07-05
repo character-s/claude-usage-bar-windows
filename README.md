@@ -14,7 +14,7 @@ Windows system tray application that monitors your Claude Pro/Team and ChatGPT C
 - **Primary / Secondary Display** — Choose which provider gets the full view (with chart); the other is shown in compact mode
 - **System Tray Icon** — Displays your current usage percentage directly in the taskbar, color-coded by severity (green → yellow → orange → red)
 - **Frameless Popup Window** — Clean, modern dark UI appears at the bottom-right corner of the screen
-- **Usage Tracking** — Monitors 5-hour and 7-day usage windows, with per-model breakdown (Opus / Sonnet) for Claude
+- **Usage Tracking** — Monitors 5-hour and 7-day usage windows, with per-model breakdown (Opus / Sonnet / Fable) for Claude
 - **Extra Usage** — Tracks paid add-on credit consumption (Claude)
 - **Historical Chart** — Visualizes usage trends over 1h / 6h / 1d / 7d / 30d (primary provider)
 - **Notifications** — Windows toast alerts when usage crosses configurable thresholds
@@ -161,7 +161,7 @@ Claude Pro/Team と ChatGPT Codex の使用量をリアルタイムで監視す�
 - **優先表示切替** — 選んだプロバイダーをフル表示（チャート付き）、もう一方はコンパクト表示
 - **システムトレイアイコン** — 現在の使用率をタスクバーに直接表示。色分けで一目瞭然（緑 → 黄 → 橙 → 赤）
 - **フレームレスポップアップ** — 画面右下に表示されるモダンなダークUI
-- **使用量トラッキング** — 5時間・7日間の使用枠を監視。Claudeはモデル別内訳（Opus / Sonnet）対応
+- **使用量トラッキング** — 5時間・7日間の使用枠を監視。Claudeはモデル別内訳（Opus / Sonnet / Fable）対応
 - **Extra Usage** — 有料追加クレジットの消費量を追跡（Claude）
 - **履歴チャート** — 1時間 / 6時間 / 1日 / 7日 / 30日の使用推移を可視化（優先プロバイダー）
 - **通知** — 設定した閾値を超えるとWindowsトースト通知でアラート

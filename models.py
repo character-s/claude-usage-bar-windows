@@ -78,6 +78,8 @@ class UsageResponse:
     seven_day_opus: Optional[UsageBucket] = None
     seven_day_sonnet: Optional[UsageBucket] = None
     seven_day_claude_design: Optional[UsageBucket] = None
+    seven_day_fable: Optional[UsageBucket] = None
+    fable_label: str = "Fable"
     extra_usage: Optional[ExtraUsage] = None
 
     def reconciled(self, previous: Optional[UsageResponse], now: Optional[datetime] = None) -> UsageResponse:
@@ -99,6 +101,10 @@ class UsageResponse:
             seven_day_claude_design=self.seven_day_claude_design.reconciled(
                 previous.seven_day_claude_design if previous else None, 7 * 86400, now
             ) if self.seven_day_claude_design else None,
+            seven_day_fable=self.seven_day_fable.reconciled(
+                previous.seven_day_fable if previous else None, 7 * 86400, now
+            ) if self.seven_day_fable else None,
+            fable_label=self.fable_label,
             extra_usage=self.extra_usage,
         )
 
@@ -109,12 +115,34 @@ class UsageResponse:
             or d.get("seven_day_claude_design")
             or d.get("seven_day_design")
         )
+        # Fable (and future model-scoped weekly limits) only appear in the
+        # `limits` array as kind=weekly_scoped with scope.model.display_name
+        fable_raw = None
+        fable_label = "Fable"
+        fable_key = d.get("seven_day_fable")
+        if fable_key:
+            fable_raw = fable_key
+        else:
+            for lim in (d.get("limits") or []):
+                if lim.get("kind") != "weekly_scoped":
+                    continue
+                model = (lim.get("scope") or {}).get("model") or {}
+                name = model.get("display_name")
+                if name:
+                    fable_raw = {
+                        "utilization": lim.get("percent"),
+                        "resets_at": lim.get("resets_at"),
+                    }
+                    fable_label = name
+                    break
         return UsageResponse(
             five_hour=UsageBucket.from_dict(d.get("five_hour")),
             seven_day=UsageBucket.from_dict(d.get("seven_day")),
             seven_day_opus=UsageBucket.from_dict(d.get("seven_day_opus")),
             seven_day_sonnet=UsageBucket.from_dict(d.get("seven_day_sonnet")),
             seven_day_claude_design=UsageBucket.from_dict(design_raw),
+            seven_day_fable=UsageBucket.from_dict(fable_raw),
+            fable_label=fable_label,
             extra_usage=ExtraUsage.from_dict(d.get("extra_usage")),
         )
 
